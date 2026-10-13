@@ -1,0 +1,3566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Balance Hídrico — Puntos de Muestreo</title>
+<style>
+  :root {
+    --tierra: #4a3728;
+    --campo: #2d5a27;
+    --campo-claro: #3d7a35;
+    --agua: #1a6b8a;
+    --agua-claro: #2590b8;
+    --naranja: #d46b08;
+    --arena: #e8dcc8;
+    --arena-claro: #f5f0e8;
+    --blanco: #fafaf8;
+    --gris: #8a8a88;
+    --gris-claro: #d0cec8;
+    --ok: #27ae60;
+    --edit-color: #b35a00;
+    --shadow: 0 2px 12px rgba(74,55,40,0.12);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--arena-claro); color: var(--tierra); min-height: 100vh; overflow-x: hidden; }
+
+  /* HEADER */
+  header { background: var(--tierra); color: var(--arena); padding: 14px 18px 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+  header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  header p { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+  /* TABS */
+  .tabs { display: flex; background: var(--campo); }
+  .tab-btn { flex: 1; padding: 10px 6px; background: none; border: none; color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; }
+  .tab-btn.active { color: #fff; border-bottom-color: #a8e063; }
+
+  /* PANELS */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ──── LISTA ──── */
+  .sector-list { padding: 12px; display: grid; gap: 10px; }
+  .sector-card { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; border-left: 5px solid var(--campo); cursor: pointer; transition: transform 0.15s; }
+  .sector-card:active { transform: scale(0.98); }
+  .sector-card.done { border-left-color: var(--ok); }
+  .sector-card.done .card-header { background: #f0faf4; }
+  .sector-card.edited { border-left-color: var(--naranja); }
+  .card-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8f6f2; }
+  .sector-badge { width: 36px; height: 36px; border-radius: 50%; background: var(--campo); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sector-card.done .sector-badge { background: var(--ok); }
+  .sector-card.edited .sector-badge { background: var(--naranja); }
+  .card-title { flex: 1; }
+  .card-title h3 { font-size: 14px; font-weight: 700; color: var(--tierra); }
+  .card-title p { font-size: 11px; color: var(--gris); margin-top: 1px; }
+  .status-icon { font-size: 20px; }
+  .card-coords { padding: 8px 14px; font-size: 11px; color: var(--gris); font-family: 'Courier New', monospace; border-top: 1px solid var(--arena); }
+  .card-actions { display: flex; border-top: 1px solid var(--arena); }
+  .btn-nav, .btn-check, .btn-edit-coord { flex: 1; padding: 10px; border: none; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; transition: background 0.15s; }
+  .btn-nav { background: var(--agua); color: #fff; }
+  .btn-nav:active { background: var(--agua-claro); }
+  .btn-edit-coord { background: var(--naranja); color: #fff; }
+  .btn-edit-coord:active { background: #e07a10; }
+  .btn-check { background: var(--campo); color: #fff; }
+  .btn-check.checked { background: var(--ok); }
+
+  /* ──── MAPA ──── */
+  #map-panel { padding: 0; }
+  #map { width: 100%; height: calc(100vh - 130px); }
+
+  /* Barra de edición sobre el mapa */
+  .edit-bar {
+    display: none;
+    position: absolute;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    background: var(--edit-color);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 24px;
+    font-size: 13px; font-weight: 700;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    display: none;
+    align-items: center; gap: 12px;
+    white-space: nowrap;
+    max-width: 90vw;
+  }
+  .edit-bar.active { display: flex; }
+  .edit-bar button { background: #fff; color: var(--edit-color); border: none; padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: 800; cursor: pointer; }
+  .edit-bar button.cancel { background: rgba(255,255,255,0.25); color: #fff; }
+
+  /* Botón modo edición en mapa */
+  .map-edit-toggle {
+    position: absolute;
+    top: 10px; left: 10px;
+    z-index: 999;
+    background: var(--tierra);
+    color: var(--arena);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: background 0.15s;
+  }
+  .map-edit-toggle.editing { background: var(--edit-color); color: #fff; }
+
+  /* Botón GPS en mapa */
+  .map-gps-btn {
+    position: absolute;
+    top: 50px; left: 10px;
+    z-index: 999;
+    background: var(--agua);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* Botón NDVI en mapa */
+  .map-ndvi-btn {
+    position: absolute;
+    top: 90px; left: 10px;
+    z-index: 999;
+    background: var(--campo);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .map-ndvi-btn.on { background: #5a8f2a; }
+
+  /* Botón estado hídrico */
+  .map-hidrico-btn {
+    position: absolute;
+    top: 130px; left: 10px;
+    z-index: 999;
+    background: #1a6b8a;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .map-hidrico-btn.on { background: #0d4f6b; }
+  .hidrico-legend {
+    display: none;
+    position: absolute;
+    top: 130px; left: 150px;
+    z-index: 999;
+    background: rgba(255,255,255,0.96);
+    border-radius: 8px;
+    padding: 8px 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    font-size: 10px;
+  }
+  .hidrico-legend.show { display: block; }
+  .hidrico-legend .row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .hidrico-legend .dot { width: 12px; height: 12px; border-radius: 50%; }
+
+  /* Panel NDVI */
+  .ndvi-panel {
+    display: none;
+    position: absolute;
+    bottom: 14px; left: 10px; right: 10px;
+    max-width: 360px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.97);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    padding: 12px 14px;
+    backdrop-filter: blur(4px);
+  }
+  .ndvi-panel.open { display: block; }
+  .ndvi-panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; font-weight: 800; color: var(--tierra);
+    margin-bottom: 10px;
+  }
+  .ndvi-panel-head button {
+    background: none; border: none; font-size: 16px; cursor: pointer; color: var(--gris);
+  }
+  .ndvi-warn {
+    background: #fff4e0; color: #8a5a00;
+    font-size: 11px; padding: 7px 9px; border-radius: 7px;
+    margin-bottom: 10px; line-height: 1.4;
+    border: 1px solid #f0d9a8;
+  }
+  .ndvi-warn.hidden { display: none; }
+  .ndvi-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 9px;
+  }
+  .ndvi-row label {
+    font-size: 11px; font-weight: 700; color: var(--tierra);
+    width: 70px; flex-shrink: 0;
+  }
+  .ndvi-row input[type="text"] {
+    flex: 1; padding: 6px 9px; border: 1.5px solid var(--gris-claro);
+    border-radius: 6px; font-size: 12px; font-family: monospace;
+    outline: none; color: var(--tierra);
+  }
+  .ndvi-row input[type="text"]:focus { border-color: var(--campo); }
+  .ndvi-row input[type="range"] { flex: 1; accent-color: var(--campo); }
+  .ndvi-toggles {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 11px;
+  }
+  .ndvi-toggle {
+    padding: 9px 4px; border: 2px solid var(--arena); border-radius: 8px;
+    background: #fff; cursor: pointer; font-size: 12px; font-weight: 700;
+    color: var(--tierra); line-height: 1.3; transition: all 0.15s;
+  }
+  .ndvi-toggle small { font-weight: 500; font-size: 9px; color: var(--gris); }
+  .ndvi-toggle.active { border-color: var(--campo); background: #eef7e4; }
+  .ndvi-toggle.active small { color: var(--campo); }
+  .ndvi-info {
+    font-size: 10px; color: var(--gris); text-align: center;
+    margin-bottom: 8px; font-style: italic;
+  }
+  .ndvi-legend {
+    display: none;
+  }
+  .ndvi-legend.show { display: block; }
+  .legend-bar {
+    height: 14px; border-radius: 4px; margin-bottom: 4px;
+  }
+  .legend-labels {
+    display: flex; justify-content: space-between; font-size: 9px; color: var(--gris);
+  }
+
+  /* ──── MODAL EDICION ──── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-sheet { background: var(--blanco); width: 100%; max-width: 480px; border-radius: 18px 18px 0 0; padding: 20px; animation: slideUp 0.25s ease; }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-handle { width: 40px; height: 4px; background: var(--gris-claro); border-radius: 2px; margin: 0 auto 14px; }
+  .modal-title { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
+  .modal-coords { font-size: 12px; color: var(--gris); font-family: monospace; margin-bottom: 16px; }
+  .nav-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .nav-option-btn { padding: 14px 10px; border: 2px solid var(--arena); border-radius: 10px; background: #fff; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .nav-option-btn:active { border-color: var(--campo); background: #f0faf4; }
+  .nav-option-btn .icon { font-size: 26px; margin-bottom: 6px; }
+  .nav-option-btn .nav-label { font-size: 12px; font-weight: 700; color: var(--tierra); }
+  .nav-option-btn .nav-sub { font-size: 10px; color: var(--gris); margin-top: 2px; }
+  .btn-cerrar-modal { width: 100%; padding: 11px; background: var(--arena); border: none; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--tierra); cursor: pointer; }
+
+  /* Modal edición manual */
+  .edit-modal-body { padding: 4px 0 12px; }
+  .edit-field-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .edit-field-row label { font-size: 12px; font-weight: 700; width: 80px; flex-shrink: 0; color: var(--tierra); }
+  .edit-field-row input { flex: 1; padding: 9px 12px; border: 2px solid var(--gris-claro); border-radius: 8px; font-size: 14px; font-family: monospace; color: var(--tierra); background: var(--arena-claro); outline: none; }
+  .edit-field-row input:focus { border-color: var(--naranja); background: #fff; }
+  .edit-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .btn-edit-save { padding: 12px; background: var(--edit-color); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-edit-gps { padding: 12px; background: var(--agua); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-edit-reset { padding: 10px; background: var(--arena); color: var(--tierra); border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 8px; width: 100%; }
+  .edit-hint { font-size: 11px; color: var(--gris); margin-bottom: 12px; line-height: 1.5; }
+  .edit-badge { display: inline-block; background: var(--naranja); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+  /* ──── REGISTRO ──── */
+  .registro-panel { padding: 12px; }
+  .reg-header { background: var(--campo); color: #fff; padding: 12px 14px; border-radius: var(--radius); margin-bottom: 12px; }
+  .reg-header h2 { font-size: 15px; font-weight: 700; }
+  .reg-header p { font-size: 11px; opacity: 0.8; margin-top: 3px; }
+  .form-card { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 10px; }
+  .form-card h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--campo); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--arena); }
+  .form-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .form-row label { font-size: 12px; color: var(--tierra); width: 120px; flex-shrink: 0; font-weight: 600; }
+  .form-row input, .form-row select { flex: 1; padding: 7px 10px; border: 1.5px solid var(--gris-claro); border-radius: 6px; font-size: 13px; background: var(--arena-claro); color: var(--tierra); outline: none; transition: border-color 0.15s; }
+  .form-row input:focus, .form-row select:focus { border-color: var(--campo); background: #fff; }
+  .btn-guardar { width: 100%; padding: 13px; background: var(--campo); color: #fff; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; margin-top: 4px; }
+  .btn-exportar { width: 100%; padding: 11px; background: var(--agua); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; margin-top: 8px; }
+  .sector-select-wrap select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--gris-claro); border-radius: var(--radius); background: var(--blanco); font-size: 13px; font-weight: 600; color: var(--tierra); outline: none; }
+
+  /* ──── RESUMEN ──── */
+  .resumen-panel { padding: 12px; }
+  .progress-card { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 10px; text-align: center; }
+  .progress-big { font-size: 36px; font-weight: 900; color: var(--campo); }
+  .progress-sub { font-size: 12px; color: var(--gris); }
+  .progress-bar-wrap { height: 10px; background: var(--arena); border-radius: 5px; overflow: hidden; margin: 10px 0 4px; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--campo), #a8e063); border-radius: 5px; transition: width 0.4s ease; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .summary-item { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; text-align: center; }
+  .summary-item .val { font-size: 22px; font-weight: 900; color: var(--tierra); }
+  .summary-item .lbl { font-size: 10px; color: var(--gris); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; }
+  .summary-item.ok .val { color: var(--ok); }
+  .summary-item.pend .val { color: var(--agua); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(60px); background: var(--tierra); color: var(--arena); padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 400; transition: transform 0.3s ease; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ──── AGUA UTIL ──── */
+  .agua-panel { padding: 12px; }
+  .agua-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .agua-card { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; text-align: center; }
+  .agua-card .ac-val { font-size: 26px; font-weight: 900; }
+  .agua-card .ac-lbl { font-size: 10px; color: var(--gris); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 3px; }
+  .agua-card .ac-sub { font-size: 10px; color: var(--gris); margin-top: 2px; }
+  .agua-card.full { grid-column: 1 / -1; }
+  .ac-bar-wrap { height: 14px; background: var(--arena); border-radius: 7px; overflow: hidden; margin: 10px 0 4px; }
+  .ac-bar { height: 100%; border-radius: 7px; transition: width 0.5s ease; }
+  .au-tabla { width: 100%; border-collapse: collapse; font-size: 11px; background: var(--blanco); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 10px; }
+  .au-tabla th { background: #1a6b8a; color: #fff; padding: 7px 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.2px; }
+  .au-tabla td { padding: 7px 4px; border-bottom: 1px solid var(--arena); text-align: center; }
+  .au-tabla tr:last-child td { border-bottom: none; }
+  .au-tabla .fila-total { background: #eef5f8; font-weight: 800; }
+  .au-tabla .fila-total td { color: #1a6b8a; }
+  .param-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .param-tab { flex: 1; padding: 8px; border: 2px solid var(--arena); border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--tierra); }
+  .param-tab.active { border-color: #1a6b8a; background: #eef5f8; color: #1a6b8a; }
+  .agua-color-ok { color: #1a9850; }
+  .agua-color-med { color: #d46b08; }
+  .agua-color-bad { color: #c0392b; }
+
+  /* ──── USUARIOS ──── */
+  .user-card { background: var(--blanco); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 8px; }
+  .user-card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .user-card .nom { font-size: 13px; font-weight: 800; color: var(--tierra); }
+  .user-card .sub { font-size: 11px; color: var(--gris); margin-top: 2px; }
+  .role-badge { font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px; color: #fff; text-transform: uppercase; }
+  .role-badge.admin { background: #6a3d9a; }
+  .role-badge.user { background: #1a6b8a; }
+  .user-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .user-actions button { flex: 1; padding: 7px; border: none; border-radius: 7px; font-size: 11px; font-weight: 700; cursor: pointer; color: #fff; }
+
+  /* Leaflet */
+  .leaflet-container { font-family: inherit; }
+  .leaflet-popup-content { font-size: 13px; }
+  #panel-mapa { position: relative; }
+
+  /* ──── NDVI TEMPORAL ──── */
+  .ndvit-panel { padding: 12px; }
+  .ndvit-status {
+    font-size: 12px; text-align: center; color: var(--gris);
+    padding: 8px; margin-bottom: 10px; min-height: 16px;
+  }
+  .ndvit-status.loading { color: #5a8f2a; font-weight: 600; }
+  .ndvit-status.error { color: #c0392b; font-weight: 600; }
+  .ndvit-diff-cards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+  }
+  .ndvit-diff-cards:empty { display: none; }
+  .diff-card {
+    background: var(--blanco); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 12px; text-align: center;
+  }
+  .diff-card .diff-val { font-size: 22px; font-weight: 900; }
+  .diff-card .diff-lbl { font-size: 10px; color: var(--gris); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 3px; }
+  .diff-card .diff-sub { font-size: 10px; color: var(--gris); margin-top: 2px; }
+  .diff-up   { color: #1a9850; }
+  .diff-down { color: #c0392b; }
+  .diff-flat { color: var(--gris); }
+  /* Tabla resumen multi-sector */
+  .ndvit-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--blanco); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 10px; }
+  .ndvit-table th { background: #5a8f2a; color: #fff; padding: 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .ndvit-table td { padding: 8px 6px; border-bottom: 1px solid var(--arena); text-align: center; }
+  .ndvit-table tr:last-child td { border-bottom: none; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <div><h1>⚗️ Balance Hídrico — Muestreo 2 m</h1><p id="campoHeaderTxt">Puntos de muestreo gravimétrico por sector de riego</p></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <span id="syncPill" style="font-size:10px;font-weight:800;background:rgba(255,255,255,0.15);color:var(--arena);padding:5px 9px;border-radius:999px;white-space:nowrap;">⚪ Sin nube</span>
+      <button onclick="cerrarSesion()" title="Cerrar sesión" style="background:rgba(255,255,255,0.15);border:none;color:var(--arena);font-size:12px;padding:5px 8px;border-radius:8px;cursor:pointer;">🚪</button>
+    </div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabResumen" onclick="showPanel('resumen', this)">📊 Resumen</button>
+  <button class="tab-btn" id="tabMapa" onclick="showPanel('mapa', this)">🗺️ Mapa</button>
+  <button class="tab-btn" id="tabSectores" onclick="showPanel('lista', this)">📋 Sectores</button>
+  <button class="tab-btn" id="tabPronostico" onclick="showPanel('pronostico', this)">📅 Pronóstico</button>
+  <button class="tab-btn" id="tabBalance" onclick="showPanel('balance', this)">🌾 Balance</button>
+  <button class="tab-btn" id="tabLluvias" onclick="showPanel('lluvias', this)">🌧️ Lluvias</button>
+  <button class="tab-btn" id="tabNdvi" onclick="showPanel('ndvit', this)">📈 Evolución NDVI</button>
+  <button class="tab-btn" id="tabDatos" onclick="showPanel('registro', this)">✏️ Datos</button>
+  <button class="tab-btn" id="tabAgua" onclick="showPanel('agua', this)">💧 Agua Útil</button>
+  <button class="tab-btn" onclick="showPanel('usuarios', this)" id="tabUsuarios" style="display:none;">👑 Usuarios</button>
+</div>
+
+<!-- PANEL LISTA -->
+<div id="panel-lista" class="panel">
+  <div style="padding:12px 12px 0;">
+    <button class="btn-guardar" onclick="abrirAgregarSector()" style="background:#1a6b8a;margin-top:0;">➕ Agregar sector</button>
+  </div>
+  <div class="sector-list" id="sectorList"></div>
+</div>
+
+<!-- PANEL MAPA -->
+<div id="panel-mapa" class="panel">
+  <button class="map-edit-toggle" id="mapEditToggle" onclick="toggleMapEdit()">✏️ Editar puntos</button>
+  <button class="map-gps-btn" onclick="centrarGPS()">📍 Mi ubicación</button>
+  <button class="map-ndvi-btn" id="ndviBtn" onclick="toggleNdviPanel()">🛰️ NDVI</button>
+  <button class="map-hidrico-btn" id="hidricoBtn" onclick="toggleMapaHidrico()">💧 Estado hídrico</button>
+  <div class="hidrico-legend" id="hidricoLegend">
+    <div class="row"><span class="dot" style="background:#1a9850"></span> Bueno (≥60%)</div>
+    <div class="row"><span class="dot" style="background:#d46b08"></span> Medio (35–60%)</div>
+    <div class="row"><span class="dot" style="background:#c0392b"></span> Déficit (&lt;35%)</div>
+    <div class="row"><span class="dot" style="background:#9aa0a6"></span> Sin dato</div>
+  </div>
+  <div id="map"></div>
+
+  <!-- Panel de control NDVI/NDWI -->
+  <div class="ndvi-panel" id="ndviPanel">
+    <div class="ndvi-panel-head">
+      <span>🛰️ Índices Sentinel-2</span>
+      <button onclick="toggleNdviPanel()">✖</button>
+    </div>
+    <div id="ndviConfigWarn" class="ndvi-warn">
+      ⚠️ Pegá tu <b>Instance ID</b> de Copernicus para activar las capas.
+    </div>
+    <div class="ndvi-row">
+      <label>Instance ID</label>
+      <input type="text" id="ndviInstanceId" placeholder="ej. a1b2c3d4-..." onchange="guardarInstanceId()">
+    </div>
+    <div class="ndvi-toggles">
+      <button class="ndvi-toggle" id="tgNdvi" onclick="setIndice('NDVI')">🌱 NDVI<br><small>Vegetación</small></button>
+      <button class="ndvi-toggle" id="tgNdwi" onclick="setIndice('NDWI')">💧 NDWI<br><small>Humedad/agua</small></button>
+      <button class="ndvi-toggle" id="tgOff" onclick="setIndice('OFF')">🚫 Apagar</button>
+    </div>
+    <div class="ndvi-row">
+      <label>Opacidad</label>
+      <input type="range" id="ndviOpacity" min="0" max="100" value="75" oninput="setOpacidad(this.value)">
+      <span id="ndviOpacityVal" style="font-size:11px;width:34px;text-align:right;">75%</span>
+    </div>
+    <div class="ndvi-row">
+      <label>Nubes máx</label>
+      <input type="range" id="ndviCloud" min="0" max="100" value="20" oninput="setNubes(this.value)">
+      <span id="ndviCloudVal" style="font-size:11px;width:34px;text-align:right;">20%</span>
+    </div>
+    <div class="ndvi-info" id="ndviInfo">Imagen más reciente · últimos 30 días</div>
+    <div class="ndvi-legend" id="ndviLegend"></div>
+  </div>
+
+  <div class="edit-bar" id="editBar">
+    <span id="editBarMsg">Arrastrá el marcador a la nueva posición</span>
+    <button onclick="confirmarEdicionMapa()">✔ Confirmar</button>
+    <button class="cancel" onclick="cancelarEdicionMapa()">✖ Cancelar</button>
+  </div>
+</div>
+
+<!-- PANEL NDVI TEMPORAL -->
+<div id="panel-ndvit" class="panel">
+  <div class="ndvit-panel">
+    <div class="reg-header" style="background:#5a8f2a;">
+      <h2>Diferencial de NDVI</h2>
+      <p>Serie temporal Sentinel-2 por sector — imagen actual vs. anteriores</p>
+    </div>
+
+    <!-- Configuración del Proxy -->
+    <div class="form-card" id="oauthCard">
+      <h4>🔗 Proxy de Sentinel Hub</h4>
+      <p style="font-size:11px;color:var(--gris);margin-bottom:10px;line-height:1.4;">
+        ⚠️ Este es un Worker <b>distinto</b> al de usuarios/login. Es el que consulta el histórico de Copernicus/Sentinel Hub — las credenciales quedan guardadas allá, no en este dispositivo.
+      </p>
+      <div class="form-row"><label>URL Worker NDVI</label><input type="text" id="workerUrl" placeholder="https://...workers.dev (Sentinel Hub, no el de login)" style="font-family:monospace;font-size:11px;"></div>
+      <button class="btn-exportar" onclick="guardarWorkerUrl()" style="background:#5a8f2a;margin-top:4px;">💾 Guardar URL</button>
+    </div>
+
+    <!-- Controles de consulta -->
+    <div class="form-card">
+      <h4 style="display:flex;justify-content:space-between;align-items:center;">
+        <span>📊 Consulta</span>
+        <a href="#" onclick="mostrarConfigWorkerNdvi();return false;" style="font-size:11px;font-weight:600;color:var(--gris);text-transform:none;letter-spacing:0;">⚙️ Cambiar Worker</a>
+      </h4>
+      <div class="form-row">
+        <label>Sector</label>
+        <select id="ndvitSector" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:var(--arena-claro);">
+          <option value="ALL">— Todos los sectores —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Período</label>
+        <select id="ndvitPeriodo" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:var(--arena-claro);">
+          <option value="90">Últimos 3 meses</option>
+          <option value="180" selected>Últimos 6 meses</option>
+          <option value="365">Último año</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Nubes máx</label>
+        <input type="range" id="ndvitCloud" min="0" max="100" value="30" oninput="document.getElementById('ndvitCloudVal').textContent=this.value+'%'" style="flex:1;accent-color:#5a8f2a;">
+        <span id="ndvitCloudVal" style="font-size:11px;width:34px;text-align:right;">30%</span>
+      </div>
+      <button class="btn-guardar" onclick="consultarNdviTemporal()" style="background:#5a8f2a;">📈 Generar gráfico</button>
+    </div>
+
+    <!-- Estado / resultado -->
+    <div id="ndvitStatus" class="ndvit-status"></div>
+
+    <!-- Tarjetas de diferencial -->
+    <div id="ndvitDiffCards" class="ndvit-diff-cards"></div>
+
+    <!-- Gráfico -->
+    <div class="form-card" id="ndvitChartCard" style="display:none;">
+      <h4 id="ndvitChartTitle">Evolución NDVI</h4>
+      <div style="position:relative;height:280px;"><canvas id="ndvitChart"></canvas></div>
+    </div>
+
+    <div class="form-card" id="ndvitKcNota" style="display:none;background:#f5f0fa;">
+      <p style="font-size:11px;color:var(--tierra);line-height:1.5;margin:0;">
+        <b>🌱 Kc curva</b> (FAO-56, violeta) es el valor genérico según días desde la siembra. <b>🌱 Kc estimado (NDVI)</b> (celeste) sale del verdor real medido por el satélite en cada pasada, con la aproximación <code>Kc ≈ 1,25 × NDVI</code>. Es solo <b>comparación</b> — el Balance y el Pronóstico siguen calculando con la curva FAO-56. Si se separan mucho, puede indicar estrés, resiembra o un desarrollo distinto al esperado.
+      </p>
+    </div>
+
+    <button class="btn-exportar" id="ndvitExportBtn" onclick="exportarNdviCSV()" style="display:none;">📤 Exportar serie a CSV</button>
+  </div>
+</div>
+
+<!-- PANEL AGUA UTIL -->
+<div id="panel-agua" class="panel">
+  <div class="agua-panel">
+    <div class="reg-header" style="background:#1a6b8a;">
+      <h2>Agua Útil del Suelo</h2>
+      <p>Cálculo desde pesos de muestras — metodología INTA · perfil 0–200 cm</p>
+    </div>
+
+    <div class="form-card">
+      <h4>📊 Sector a calcular</h4>
+      <div class="form-row">
+        <label>Sector</label>
+        <select id="aguaSector" onchange="mostrarSueloDe()" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:var(--arena-claro);">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Tipo de suelo</label>
+        <select id="aguaSuelo" onchange="guardarSueloDesdeAgua()" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:#fff;">
+          <option value="FL">Franco Limoso</option>
+          <option value="FA">Franco Arenoso</option>
+        </select>
+      </div>
+      <button class="btn-guardar" onclick="calcularAguaUtil()" style="background:#1a6b8a;">💧 Calcular agua útil</button>
+    </div>
+
+    <div id="aguaStatus" class="ndvit-status"></div>
+
+    <!-- Resultado: tarjetas -->
+    <div id="aguaResumen"></div>
+
+    <!-- Tabla por horizonte -->
+    <div id="aguaTablaWrap"></div>
+
+    <!-- Parámetros editables -->
+    <div class="form-card" id="paramsCard">
+      <h4 onclick="toggleParams()" style="cursor:pointer;display:flex;justify-content:space-between;">
+        <span>⚙️ Parámetros de suelo</span><span id="paramsArrow">▼</span>
+      </h4>
+      <div id="paramsBody" style="display:none;">
+        <div class="param-tabs">
+          <button class="param-tab active" id="ptFL" onclick="editarSuelo('FL')">Franco Limoso</button>
+          <button class="param-tab" id="ptFA" onclick="editarSuelo('FA')">Franco Arenoso</button>
+        </div>
+        <div class="form-row"><label>Densidad ap. (da)</label><input type="number" step="0.01" id="pDa" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>AUD máx (mm)</label><input type="number" step="1" id="pAuMax" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <p style="font-size:11px;font-weight:700;color:var(--tierra);margin:8px 0 4px;">Límite mínimo (PMP) por horizonte, en mm:</p>
+        <div class="form-row"><label>0–20 cm</label><input type="number" step="0.1" id="pPmp0" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>20–40 cm</label><input type="number" step="0.1" id="pPmp1" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>40–60 cm</label><input type="number" step="0.1" id="pPmp2" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>60–100 cm</label><input type="number" step="0.1" id="pPmp3" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>100–150 cm</label><input type="number" step="0.1" id="pPmp4" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <div class="form-row"><label>150–200 cm</label><input type="number" step="0.1" id="pPmp5" style="flex:1;padding:5px 8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+        <button class="btn-exportar" onclick="guardarParams()" style="background:#1a6b8a;margin-top:6px;">💾 Guardar parámetros</button>
+      </div>
+    </div>
+
+    <button class="btn-exportar" id="aguaExportBtn" onclick="exportarAguaCSV()" style="display:none;">📤 Exportar cálculo a CSV</button>
+  </div>
+</div>
+
+<!-- PANEL BALANCE -->
+<div id="panel-balance" class="panel">
+  <div class="agua-panel">
+    <div class="reg-header" style="background:#2d5a27;">
+      <h2>Balance Hídrico Diario</h2>
+      <p>Agua útil medida, ajustada por ETc (FAO-56), lluvia y riego</p>
+    </div>
+
+    <div class="form-card" style="border-left:5px solid #2d5a27;">
+      <h4>🌱 Sector y cultivo</h4>
+      <div class="form-row">
+        <label>Sector</label>
+        <select id="balSector" onchange="cargarCfgSector()" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:var(--arena-claro);">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Cultivo</label>
+        <select id="balCultivo" style="flex:1;padding:8px 10px;border:2px solid #2d5a27;border-radius:6px;font-size:14px;font-weight:700;background:#eef7e4;color:#1b5e20;"></select>
+      </div>
+      <div class="form-row"><label>Fecha siembra</label><input type="date" id="balSiembra" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+      <div class="form-row"><label>Umbral riego (%)</label><input type="number" id="balUmbral" value="50" min="10" max="90" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+      <div class="form-row" style="gap:6px;"><label style="width:auto;">Lluvia automática (Open-Meteo)</label><input type="checkbox" id="balLluviaAuto" checked style="width:18px;height:18px;"></div>
+      <div style="font-size:11px;color:#777;margin:-4px 0 6px;">Las lluvias cargadas en 🌧️ Lluvias para el campo de este sector tienen prioridad sobre Open-Meteo en esas fechas.</div>
+      <div class="btn-row" style="display:flex;gap:8px;">
+        <button class="btn-exportar" onclick="guardarCfgSector()" style="background:#1a6b8a;margin-top:4px;flex:1;">💾 Guardar</button>
+        <button class="btn-guardar" onclick="calcularBalance()" style="background:#2d5a27;margin-top:4px;flex:1;">🌾 Calcular balance</button>
+      </div>
+    </div>
+
+    <div id="balStatus" class="ndvit-status"></div>
+    <div id="balResumen"></div>
+
+    <div class="form-card" id="balChartCard" style="display:none;">
+      <h4 id="balChartTitle">Balance hídrico</h4>
+      <div style="position:relative;height:300px;"><canvas id="balChart"></canvas></div>
+    </div>
+
+    <!-- Eventos -->
+    <div class="form-card">
+      <h4>🌧️ Lluvias y 🚿 Riegos</h4>
+      <div class="form-row"><label>Fecha</label><input type="date" id="evFecha" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+      <div class="form-row">
+        <label>Tipo</label>
+        <select id="evTipo" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;">
+          <option value="riego">🚿 Riego</option>
+          <option value="lluvia">🌧️ Lluvia (manual)</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Lámina (mm)</label><input type="number" step="0.5" id="evMm" placeholder="0.0" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+      <button class="btn-exportar" onclick="agregarEvento()" style="background:#1a6b8a;margin:4px 0 10px;">+ Agregar evento</button>
+      <div id="eventosList"></div>
+      <p style="font-size:10px;color:var(--gris);margin-top:6px;">Con lluvia automática activada, solo cargá los riegos. Las lluvias manuales se usan únicamente si la automática está desactivada.</p>
+    </div>
+
+    <!-- Editar Kc de cultivos -->
+    <div class="form-card">
+      <h4 onclick="toggleCultParams()" style="cursor:pointer;display:flex;justify-content:space-between;"><span>⚙️ Coeficientes Kc por cultivo (FAO-56)</span><span id="cultArrow">▼</span></h4>
+      <div id="cultBody" style="display:none;">
+        <p style="font-size:10px;color:var(--gris);line-height:1.4;margin-bottom:8px;">Valores de referencia FAO-56 ajustados a ciclos típicos de la Zona Núcleo. La fecha real de floración y madurez cambia según híbrido/GM y fecha de siembra — si tenés esos datos de tus propios lotes, ajustalos acá y quedan guardados.</p>
+        <div class="form-row">
+          <label>Cultivo</label>
+          <select id="cultEditSel" onchange="editarCultivo(this.value)" style="flex:1;padding:6px 9px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></select>
+        </div>
+        <p style="font-size:11px;font-weight:700;margin:6px 0 4px;">Kc (inicial / medio / final):</p>
+        <div class="form-row" style="gap:6px;">
+          <input type="number" step="0.01" id="cKcIni" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+          <input type="number" step="0.01" id="cKcMed" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+          <input type="number" step="0.01" id="cKcFin" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+        </div>
+        <p style="font-size:11px;font-weight:700;margin:8px 0 4px;">Duración etapas en días (inic/desar/media/final):</p>
+        <div class="form-row" style="gap:5px;">
+          <input type="number" id="cEtIni" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+          <input type="number" id="cEtDes" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+          <input type="number" id="cEtMed" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+          <input type="number" id="cEtFin" style="flex:1;padding:6px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;text-align:center;">
+        </div>
+        <button class="btn-exportar" onclick="guardarCultivo()" style="background:#2d5a27;margin-top:6px;">💾 Guardar cultivo</button>
+      </div>
+    </div>
+
+    <button class="btn-exportar" id="balExportBtn" onclick="exportarBalanceCSV()" style="display:none;">📤 Exportar balance a CSV</button>
+  </div>
+</div>
+
+<!-- PANEL PRONOSTICO -->
+<div id="panel-pronostico" class="panel">
+  <div class="agua-panel">
+    <div class="reg-header" style="background:#6a3d9a;">
+      <h2>Pronóstico 14 días</h2>
+      <p>Recomendación de riego + alertas (heladas, tormentas, viento, DPV)</p>
+    </div>
+
+    <div class="form-card" style="border-left:5px solid #6a3d9a;">
+      <h4>🌱 Sector y cultivo</h4>
+      <div class="form-row">
+        <label>Sector</label>
+        <select id="pronSector" onchange="cargarCfgPron()" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:var(--arena-claro);">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Cultivo</label>
+        <select id="pronCultivo" style="flex:1;padding:8px 10px;border:2px solid #6a3d9a;border-radius:6px;font-size:14px;font-weight:700;background:#f5f0fa;color:#4a2a7a;"></select>
+      </div>
+      <div class="form-row"><label>Fecha siembra</label><input type="date" id="pronSiembra" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></div>
+      <p id="pronCultivoHint" style="font-size:10px;color:var(--gris);margin-bottom:8px;">Se usa para proyectar el agua útil con el Kc de cada etapa.</p>
+      <div class="btn-row" style="display:flex;gap:8px;">
+        <button class="btn-exportar" onclick="guardarCfgPron()" style="background:#1a6b8a;margin-top:0;flex:1;">💾 Guardar</button>
+        <button class="btn-guardar" onclick="calcularPronostico()" style="background:#6a3d9a;margin-top:0;flex:1;">📅 Generar pronóstico</button>
+      </div>
+    </div>
+
+    <div id="pronStatus" class="ndvit-status"></div>
+    <div id="pronReco" style="margin-bottom:10px;"></div>
+    <div id="pronAlertas"></div>
+    <div id="pronLista" style="margin-top:6px;"></div>
+
+    <div class="form-card" style="background:#f5f0fa;">
+      <p style="font-size:11px;color:var(--tierra);line-height:1.5;margin:0;">
+        <b>ℹ️ Sobre los datos:</b> son <b>pronósticos</b> y su acierto baja con los días (los primeros 3–5 días son los más confiables). El <b>DPV</b> (déficit de presión de vapor) indica la demanda atmosférica: valores altos (&gt;2.5 kPa) anticipan estrés aunque haya agua en el suelo. Umbrales de alerta: helada ≤0°C (riesgo ≤3°C), viento &gt;50 km/h, tormenta fuerte por código de tiempo o lluvia ≥25 mm.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL LLUVIAS -->
+<div id="panel-lluvias" class="panel">
+  <div class="registro-panel">
+    <div class="reg-header">
+      <h2>🌧️ Registro de lluvias</h2>
+      <p>Milímetros por campo. El balance de cada sector del campo usa estos valores (prioridad sobre Open-Meteo en esas fechas).</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:10px;">
+      <select id="lluCampo" onchange="renderLluvias()" style="width:100%;padding:9px 12px;border:1.5px solid var(--gris-claro);border-radius:var(--radius);font-size:13px;font-weight:600;"></select>
+      <div style="display:flex;gap:8px;">
+        <input type="date" id="lluFecha" style="flex:1;padding:8px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;">
+        <input type="number" id="lluMm" placeholder="mm" min="0" step="0.1" inputmode="decimal" style="width:90px;padding:8px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;">
+        <button class="btn-guardar" onclick="agregarLluvia()" style="margin:0;padding:8px 14px;">➕</button>
+      </div>
+      <div id="lluStats" style="font-size:12px;color:#555;"></div>
+      <details style="font-size:12px;">
+        <summary style="cursor:pointer;font-weight:700;">📋 Pegar varias lluvias</summary>
+        <textarea id="lluMasiva" rows="5" placeholder="Una por línea: fecha y mm&#10;12/10/2026 25&#10;2026-10-05 8,5" style="width:100%;margin-top:6px;padding:8px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;"></textarea>
+        <button class="btn-exportar" onclick="importarLluviasPegadas()" style="margin-top:4px;">Importar</button>
+      </details>
+      <div id="lluTabla"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL REGISTRO -->
+<div id="panel-registro" class="panel">
+  <div class="registro-panel">
+    <div class="reg-header">
+      <h2>Carga de Muestras</h2>
+      <p>Peso húmedo y seco por horizonte — perfil 0–200 cm</p>
+    </div>
+    <div style="padding:0 0 10px 0">
+      <select id="regSectorSelect" onchange="actualizarSueloDatos()" style="width:100%;padding:9px 12px;border:1.5px solid var(--gris-claro);border-radius:var(--radius);background:var(--blanco);font-size:13px;font-weight:600;color:var(--tierra);outline:none;">
+        <option value="">— Seleccionar sector —</option>
+      </select>
+    </div>
+    <div class="form-card" id="sueloDatosCard" style="background:#f0f5e8;border-left:4px solid #5a8f2a;">
+      <h4 style="border:none;margin-bottom:8px;">🌍 Tipo de Suelo</h4>
+      <div class="form-row">
+        <label>Suelo del sector</label>
+        <select id="regSuelo" onchange="guardarSueloSector()" style="flex:1;padding:7px 10px;border:1.5px solid var(--gris-claro);border-radius:6px;font-size:13px;background:#fff;">
+          <option value="FL">Franco Limoso (AUD máx 360 mm)</option>
+          <option value="FA">Franco Arenoso (AUD máx 286 mm)</option>
+        </select>
+      </div>
+      <p style="font-size:10px;color:var(--gris);margin-top:4px;">Define los parámetros para el cálculo de agua útil. Se guarda por sector.</p>
+    </div>
+    <div class="form-card">
+      <h4>📅 Identificación</h4>
+      <div class="form-row"><label>Fecha</label><input type="date" id="regFecha"></div>
+      <div class="form-row"><label>Operador</label><input type="text" id="regOperador" placeholder="Nombre"></div>
+      <div class="form-row"><label>Observaciones</label><input type="text" id="regObs" placeholder="Opcional"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 0–20 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_0" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_0" placeholder="0.0"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 20–40 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_1" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_1" placeholder="0.0"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 40–60 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_2" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_2" placeholder="0.0"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 60–100 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_3" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_3" placeholder="0.0"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 100–150 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_4" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_4" placeholder="0.0"></div>
+    </div>
+    <div class="form-card"><h4>🌱 Horizonte 150–200 cm</h4>
+      <div class="form-row"><label>Peso húmedo (g)</label><input type="number" step="0.1" id="ph_5" placeholder="0.0"></div>
+      <div class="form-row"><label>Peso seco (g)</label><input type="number" step="0.1" id="ps_5" placeholder="0.0"></div>
+    </div>
+    <button class="btn-guardar" onclick="guardarMuestra()">💾 Guardar Muestra</button>
+    <button class="btn-exportar" onclick="exportarCSV()">📤 Exportar CSV</button>
+  </div>
+</div>
+
+<!-- PANEL RESUMEN -->
+<div id="panel-resumen" class="panel active">
+  <div class="resumen-panel">
+    <div class="progress-card" style="margin-top:0;text-align:left;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris);">🗂️ Resumen por campo y lote</span>
+        <button onclick="actualizarBalanceTodos()" style="background:#1a6b8a;color:#fff;border:none;padding:5px 10px;border-radius:7px;font-size:10px;font-weight:700;cursor:pointer;">🌾 Actualizar balance</button>
+      </div>
+      <p id="resumenAgrupadoStatus" style="font-size:10px;color:var(--gris);margin-top:4px;min-height:13px;"></p>
+      <p style="font-size:10px;color:var(--gris);margin:2px 0 0;">⚡ Balance ajustado (ETc/lluvia/riego) · 📏 Solo medido (sin cultivo/siembra configurado)</p>
+      <div id="resumenAgrupado" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="progress-card" style="margin-top:10px;text-align:left;">
+      <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris);">📅 Pronóstico — próximos 7 días</span>
+      <div id="resenaPronostico" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="progress-card" style="margin-top:10px;text-align:left;">
+      <h4 onclick="toggleMasResumen()" style="cursor:pointer;display:flex;justify-content:space-between;margin:0;border:none;"><span style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">⚙️ Más detalles</span><span id="masResumenArrow">▼</span></h4>
+      <div id="masResumenBody" style="display:none;margin-top:10px;">
+        <div class="progress-card">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris);margin-bottom:6px;">Avance del muestreo</div>
+          <div class="progress-big" id="progPct">0%</div>
+          <div class="progress-sub" id="progSub">0 de 16 sectores completados</div>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="progBar" style="width:0%"></div></div>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-item ok"><div class="val" id="sumDone">0</div><div class="lbl">Muestreados</div></div>
+          <div class="summary-item pend"><div class="val" id="sumPend">16</div><div class="lbl">Pendientes</div></div>
+          <div class="summary-item"><div class="val" id="sumHoy">0</div><div class="lbl">Hoy</div></div>
+          <div class="summary-item"><div class="val" id="sumEditados">0</div><div class="lbl">Editados</div></div>
+        </div>
+        <div id="muestrasListResumen" style="margin-top:10px;"></div>
+        <div class="progress-card" style="margin-top:10px;text-align:left;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris);">💧 Estado hídrico</span>
+            <button onclick="actualizarBalanceTodos()" style="background:#1a6b8a;color:#fff;border:none;padding:6px 11px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🌾 Actualizar balance</button>
+          </div>
+          <div id="estadoHidricoStatus" style="font-size:11px;color:var(--gris);margin-bottom:8px;"></div>
+          <div id="estadoHidricoLista"></div>
+        </div>
+        <div class="progress-card" style="margin-top:10px;text-align:left;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gris);margin-bottom:8px;">☁️ Sincronización</div>
+          <p style="font-size:11px;color:var(--gris);line-height:1.5;margin-bottom:10px;">Tus datos se sincronizan solos con la nube de tu campo (<b id="campoActualTxt">-</b>). Usá este botón si querés forzar una actualización ahora.</p>
+          <button class="btn-exportar" onclick="syncAhora(true)" style="width:100%;margin:0;background:#1a6b8a;">🔄 Sincronizar ahora</button>
+          <p id="syncEstado" style="font-size:11px;color:var(--gris);text-align:center;margin-top:8px;"></p>
+        </div>
+        <button class="btn-exportar" onclick="exportarCSV()" style="margin-top:10px;">📤 Exportar CSV completo</button>
+        <button class="btn-exportar" onclick="exportarKML()" style="margin-top:8px;background:var(--campo);">🗺️ Exportar KML actualizado</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NAVEGACION -->
+<div class="modal-overlay" id="navModal" onclick="if(event.target===this)closeModal('navModal')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">SECTOR 1</div>
+    <div class="modal-coords" id="modalCoords"></div>
+    <div class="nav-options">
+      <button class="nav-option-btn" onclick="openGoogleMaps()">
+        <div class="icon">🗺️</div><div class="nav-label">Google Maps</div><div class="nav-sub">Abrir navegación</div>
+      </button>
+      <button class="nav-option-btn" onclick="openWaze()">
+        <div class="icon">🚗</div><div class="nav-label">Waze</div><div class="nav-sub">Abrir en Waze</div>
+      </button>
+      <button class="nav-option-btn" onclick="copyCoords()">
+        <div class="icon">📋</div><div class="nav-label">Copiar coords</div><div class="nav-sub">Lat/Lon exactas</div>
+      </button>
+      <button class="nav-option-btn" onclick="irARegistro()">
+        <div class="icon">✏️</div><div class="nav-label">Cargar datos</div><div class="nav-sub">Registrar muestra</div>
+      </button>
+    </div>
+    <button class="btn-cerrar-modal" onclick="closeModal('navModal')">Cerrar</button>
+  </div>
+</div>
+
+<!-- MODAL EDICIÓN MANUAL -->
+<div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeModal('editModal')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="editModalTitle">Editar Sector <span class="edit-badge">EDITAR</span></div>
+    <div class="edit-modal-body">
+      <p class="edit-hint" id="editHintTxt">Ingresá las coordenadas manualmente, usá el GPS para tomar tu posición actual, o activá el modo arrastre en el mapa.</p>
+      <div class="edit-field-row">
+        <label>Nombre</label>
+        <input type="text" id="editNombre" placeholder="Ej. Lote Norte (opcional)">
+      </div>
+      <div class="edit-field-row">
+        <label>Campo</label>
+        <input type="text" id="editCampo" list="listaCampos" placeholder="Ej. PAGIOTTA (opcional)">
+        <datalist id="listaCampos"></datalist>
+      </div>
+      <div class="edit-field-row">
+        <label>Lote</label>
+        <input type="text" id="editLote" list="listaLotes" placeholder="Ej. Lote 3 (opcional)">
+        <datalist id="listaLotes"></datalist>
+      </div>
+      <div class="edit-field-row">
+        <label>Latitud</label>
+        <input type="number" step="0.000001" id="editLat" placeholder="-31.650000">
+      </div>
+      <div class="edit-field-row">
+        <label>Longitud</label>
+        <input type="number" step="0.000001" id="editLon" placeholder="-63.730000">
+      </div>
+      <div class="edit-actions">
+        <button class="btn-edit-save" onclick="guardarEdicionManual()">✔ Guardar</button>
+        <button class="btn-edit-gps" onclick="usarGPSEnEdicion()">📍 Usar GPS</button>
+      </div>
+      <button class="btn-edit-reset" id="btnResetSector" onclick="resetearPunto()">↩ Restaurar posición original</button>
+      <button class="btn-edit-reset" id="btnEliminarSector" onclick="eliminarSector()" style="background:#fdecea;color:#c0392b;margin-top:8px;">🗑️ Eliminar sector</button>
+    </div>
+    <button class="btn-cerrar-modal" onclick="closeModal('editModal')">Cancelar</button>
+  </div>
+</div>
+
+<!-- PANEL USUARIOS (solo admin) -->
+<div id="panel-usuarios" class="panel">
+  <div class="agua-panel">
+    <div class="reg-header" style="background:#4a3728;">
+      <h2>Gestión de usuarios</h2>
+      <p>Autorizá el acceso de cada campo y administrá roles</p>
+    </div>
+    <div class="form-card">
+      <h4>⏳ Solicitudes pendientes</h4>
+      <div id="usuariosPendientes"><p style="font-size:12px;color:var(--gris);text-align:center;padding:10px;">Cargando…</p></div>
+    </div>
+    <div class="form-card">
+      <h4>✅ Usuarios activos</h4>
+      <div id="usuariosActivos"></div>
+    </div>
+    <button class="btn-exportar" onclick="cargarUsuarios()" style="background:#4a3728;">🔄 Actualizar lista</button>
+  </div>
+</div>
+
+
+<!-- AUTENTICACIÓN -->
+<div id="authGate" style="position:fixed;inset:0;z-index:9000;background:var(--arena-claro);display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto;">
+  <div style="width:100%;max-width:400px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:38px;">⚗️</div>
+      <h2 style="font-size:18px;font-weight:800;color:var(--tierra);margin-top:4px;">Balance Hídrico</h2>
+      <p style="font-size:12px;color:var(--gris);">Cada campo con sus propios datos, aislados y privados</p>
+    </div>
+
+    <!-- Paso 0: configurar el Worker (solo la primera vez en este dispositivo) -->
+    <div id="authStepUrl" class="form-card" style="display:none;">
+      <h4>🔗 Conexión</h4>
+      <p style="font-size:11px;color:var(--gris);margin-bottom:10px;line-height:1.5;">Pegá la URL del Worker de sincronización (te la damos una sola vez, es la misma para todo el equipo).</p>
+      <div class="form-row"><label>URL Worker</label><input type="text" id="authUrlInput" placeholder="https://...workers.dev" style="font-family:monospace;font-size:11px;"></div>
+      <button class="btn-guardar" onclick="guardarUrlInicial()">Continuar</button>
+    </div>
+
+    <!-- Paso 1: login -->
+    <div id="authStepLogin" class="form-card" style="display:none;">
+      <h4>🔑 Ingresar</h4>
+      <div class="form-row"><label>Usuario</label><input type="text" id="loginUser" autocapitalize="off" placeholder="tu usuario"></div>
+      <div class="form-row"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••"></div>
+      <p id="loginError" style="font-size:12px;color:#c0392b;text-align:center;min-height:16px;margin-bottom:4px;"></p>
+      <button class="btn-guardar" onclick="hacerLogin()">Ingresar</button>
+      <p style="text-align:center;margin-top:12px;font-size:12px;">
+        <a href="#" onclick="mostrarRegistro();return false;" style="color:var(--agua);font-weight:700;">¿Sos nuevo? Solicitar acceso</a>
+      </p>
+    </div>
+
+    <!-- Paso 2: solicitar acceso -->
+    <div id="authStepRegistro" class="form-card" style="display:none;">
+      <h4>📝 Solicitar acceso</h4>
+      <p style="font-size:11px;color:var(--gris);margin-bottom:10px;line-height:1.5;">Un administrador tiene que autorizar tu cuenta antes de que puedas ingresar.</p>
+      <div class="form-row"><label>Nombre</label><input type="text" id="regNombre" placeholder="Nombre y apellido"></div>
+      <div class="form-row"><label>Tu campo</label><input type="text" id="regCampo" placeholder="Ej. LOZADA, COSTA SACATE..."></div>
+      <div class="form-row"><label>Usuario</label><input type="text" id="regUser" autocapitalize="off" placeholder="usuario (sin espacios)"></div>
+      <div class="form-row"><label>Contraseña</label><input type="password" id="regPass" placeholder="mínimo 4 caracteres"></div>
+      <p id="regError" style="font-size:12px;color:#c0392b;text-align:center;min-height:16px;margin-bottom:4px;"></p>
+      <button class="btn-guardar" onclick="hacerRegistro()" style="background:#1a6b8a;">Enviar solicitud</button>
+      <p style="text-align:center;margin-top:12px;font-size:12px;">
+        <a href="#" onclick="mostrarLogin();return false;" style="color:var(--agua);font-weight:700;">Ya tengo cuenta — Ingresar</a>
+      </p>
+    </div>
+
+    <!-- Paso 3: importar KMZ del campo (usuarios nuevos, primera vez) -->
+    <div id="authStepKmz" class="form-card" style="display:none;">
+      <h4>🗺️ Sectores de tu campo</h4>
+      <p style="font-size:11px;color:var(--gris);margin-bottom:12px;line-height:1.5;">Tu campo todavía no tiene sectores cargados. Subí el archivo <b>.kmz</b> o <b>.kml</b> con los polígonos de riego — se genera un punto de muestreo por cada uno, igual que la primera vez que armamos esta app.</p>
+      <input type="file" id="kmzInput" accept=".kmz,.kml" onchange="procesarKmz(event)" style="width:100%;padding:9px;border:1.5px solid var(--gris-claro);border-radius:8px;background:#fff;font-size:12px;">
+      <p id="kmzEstado" style="font-size:12px;color:var(--gris);text-align:center;margin-top:10px;min-height:16px;"></p>
+    </div>
+
+    <p id="authFooterMsg" style="text-align:center;font-size:11px;color:var(--gris);margin-top:16px;"></p>
+    <p style="text-align:center;margin-top:10px;">
+      <a href="#" onclick="cambiarUrlWorker();return false;" style="color:var(--gris);font-size:11px;">⚙️ Cambiar URL del Worker</a>
+    </p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ──── DATOS ORIGINALES (solo lectura, para reset) ──────────
+const SECTORES_DEFAULT_ADMIN = [
+  { id:1,  lat:-31.6560044, lon:-63.7331704 },
+  { id:2,  lat:-31.6555141, lon:-63.7297726 },
+  { id:3,  lat:-31.6504657, lon:-63.7343331 },
+  { id:4,  lat:-31.6509934, lon:-63.7307683 },
+  { id:5,  lat:-31.6520610, lon:-63.7369968 },
+  { id:6,  lat:-31.6528070, lon:-63.7395490 },
+  { id:7,  lat:-31.6529542, lon:-63.7420454 },
+  { id:8,  lat:-31.6575710, lon:-63.7363220 },
+  { id:9,  lat:-31.6582167, lon:-63.7392458 },
+  { id:10, lat:-31.6583486, lon:-63.7408729 },
+  { id:11, lat:-31.6584599, lon:-63.7424563 },
+  { id:12, lat:-31.6632466, lon:-63.7350323 },
+  { id:13, lat:-31.6633754, lon:-63.7367600 },
+  { id:14, lat:-31.6635360, lon:-63.7385176 },
+  { id:15, lat:-31.6636807, lon:-63.7402845 },
+  { id:16, lat:-31.6638492, lon:-63.7420637 },
+];
+
+// Datos activos en memoria (se cargan según el campo del usuario logueado)
+let SECTORES_ORIG = [];
+let SECTOR_POLY = {};
+
+// Coordenadas editables — se guardan en localStorage
+let coordsEditadas = JSON.parse(localStorage.getItem('coords_editadas_bh') || '{}');
+
+// Construir array activo fusionando orig + ediciones
+function getSectores() {
+  return SECTORES_ORIG.map(s => {
+    if (coordsEditadas[s.id]) return { ...s, lat: coordsEditadas[s.id].lat, lon: coordsEditadas[s.id].lon };
+    return { ...s };
+  });
+}
+function nombreSector(s){ return s.nombre || ('SECTOR ' + s.id); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+
+const PROFUNDIDADES = ['0-20','20-40','40-60','60-100','100-150','150-200'];
+
+let muestras    = JSON.parse(localStorage.getItem('muestras_bh')    || '{}');
+let completados = JSON.parse(localStorage.getItem('completados_bh') || '[]');
+let currentSector = null;
+let map = null;
+let markers = {};
+let editModeActive = false;
+let editingSectorId = null;
+let modoAgregarSector = false;
+let tempLatLng = null; // posición temporal durante arrastre
+
+// ──── ESTADO NDVI/NDWI ─────────────────────────────────────
+let ndviLayer = null;            // capa WMS activa
+let ndviInstanceId = localStorage.getItem('ndvi_instance_id') || '';
+let ndviIndiceActivo = localStorage.getItem('ndvi_indice') || 'OFF';
+let ndviOpacidad = 0.75;
+let ndviNubes = 20;
+
+// ──── NAVEGACIÓN DE PANELES ────────────────────────────────
+function showPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'mapa') { setTimeout(initMap, 50); }
+  if (name === 'resumen') { updateResumen(); renderEstadoLista(); renderResumenAgrupado(); cargarResenaPronostico(); if(!balanceAutoCargado) actualizarBalanceTodos(); }
+  if (name === 'agua') mostrarSueloDe();
+  if (name === 'balance') cargarCfgSector();
+  if (name === 'pronostico') cargarCfgPron();
+  if (name === 'usuarios') cargarUsuarios();
+  if (name === 'lluvias') renderLluvias();
+}
+
+// ──── RENDERIZADO DE LISTA ─────────────────────────────────
+function renderLista() {
+  const SECTORES = getSectores();
+  const container = document.getElementById('sectorList');
+  container.innerHTML = '';
+  SECTORES.forEach(s => {
+    const done   = completados.includes(s.id);
+    const edited = !!coordsEditadas[s.id];
+    const campoLote = [s.campo, s.lote].filter(Boolean).join(' · ');
+    const card = document.createElement('div');
+    card.className = 'sector-card' + (done ? ' done' : '') + (edited && !done ? ' edited' : '');
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="sector-badge">${s.id}</div>
+        <div class="card-title">
+          <h3>${esc(nombreSector(s))}${edited ? '<span class="edit-badge">MOD</span>' : ''}</h3>
+          <p>${campoLote ? '🏞️ ' + esc(campoLote) + ' · ' : ''}${done ? '✅ Muestra tomada' : edited ? '🟠 Coordenadas modificadas' : '⏳ Pendiente de muestreo'}</p>
+        </div>
+        <div class="status-icon">${done ? '✅' : edited ? '🟠' : '🔵'}</div>
+      </div>
+      <div class="card-coords">📍 ${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}</div>
+      <div class="card-actions">
+        <button class="btn-nav" onclick="openNavModal(${s.id})">🧭 Navegar</button>
+        <button class="btn-edit-coord" onclick="abrirEditManual(${s.id}, event)">✏️ Editar</button>
+        <button class="btn-check ${done ? 'checked' : ''}" onclick="toggleDone(${s.id}, event)">${done ? '✅ Listo' : '☑ Marcar'}</button>
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+function toggleDone(id, e) {
+  e.stopPropagation();
+  const idx = completados.indexOf(id);
+  if (idx >= 0) completados.splice(idx, 1); else completados.push(id);
+  localStorage.setItem('completados_bh', JSON.stringify(completados));
+  marcarCambio('completados');
+  renderLista(); updateMarkers();
+  showToast(completados.includes(id) ? `Sector ${id} marcado como listo` : `Sector ${id} desmarcado`);
+}
+
+// ──── MAPA ─────────────────────────────────────────────────
+function initMap() {
+  const SECTORES = getSectores();
+  if (map) { map.invalidateSize(); refreshAllMarkers(); return; }
+  const cLat = SECTORES.reduce((a,s) => a+s.lat, 0) / SECTORES.length;
+  const cLon = SECTORES.reduce((a,s) => a+s.lon, 0) / SECTORES.length;
+  map = L.map('map').setView([cLat, cLon], 14);
+
+  const esriSat    = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:20, attribution:'© Esri, Maxar' });
+  const esriLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom:20 });
+  const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom:20, subdomains:['mt0','mt1','mt2','mt3'], attribution:'© Google' });
+  const osm        = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' });
+
+  esriSat.addTo(map); esriLabels.addTo(map);
+  L.control.layers({
+    '🛰️ Híbrido ESRI': L.layerGroup([esriSat, esriLabels]),
+    '🌍 Google Híbrido': googleHybrid,
+    '🗺️ OpenStreetMap': osm,
+  }, {}, { position:'topright', collapsed:true }).addTo(map);
+
+  SECTORES.forEach(s => crearMarcador(s));
+
+  // Restaurar estado NDVI guardado
+  ndviInitUI();
+  if (ndviInstanceId && ndviIndiceActivo !== 'OFF') aplicarCapaNdvi();
+}
+
+// ──── NDVI / NDWI (Sentinel-2 via Copernicus Data Space) ────
+// Rango de fechas dinámico: últimos 30 días → siempre la imagen más reciente
+function rangoFechasReciente() {
+  const hoy = new Date();
+  const desde = new Date(hoy); desde.setDate(hoy.getDate() - 30);
+  const fmt = d => d.toISOString().split('T')[0];
+  return `${fmt(desde)}/${fmt(hoy)}`;
+}
+
+function ndviInitUI() {
+  document.getElementById('ndviInstanceId').value = ndviInstanceId;
+  document.getElementById('ndviOpacity').value = Math.round(ndviOpacidad * 100);
+  document.getElementById('ndviOpacityVal').textContent = Math.round(ndviOpacidad * 100) + '%';
+  document.getElementById('ndviCloud').value = ndviNubes;
+  document.getElementById('ndviCloudVal').textContent = ndviNubes + '%';
+  document.getElementById('ndviConfigWarn').classList.toggle('hidden', !!ndviInstanceId);
+  marcarToggleActivo();
+}
+
+function toggleNdviPanel() {
+  const p = document.getElementById('ndviPanel');
+  const b = document.getElementById('ndviBtn');
+  p.classList.toggle('open');
+  b.classList.toggle('on', p.classList.contains('open'));
+}
+
+function guardarInstanceId() {
+  ndviInstanceId = document.getElementById('ndviInstanceId').value.trim();
+  localStorage.setItem('ndvi_instance_id', ndviInstanceId);
+  document.getElementById('ndviConfigWarn').classList.toggle('hidden', !!ndviInstanceId);
+  showToast(ndviInstanceId ? '✅ Instance ID guardado' : 'Instance ID vacío');
+  if (ndviInstanceId && ndviIndiceActivo !== 'OFF') aplicarCapaNdvi();
+}
+
+function setIndice(ind) {
+  if (ind !== 'OFF' && !ndviInstanceId) {
+    showToast('⚠️ Primero pegá tu Instance ID');
+    document.getElementById('ndviInstanceId').focus();
+    return;
+  }
+  ndviIndiceActivo = ind;
+  localStorage.setItem('ndvi_indice', ind);
+  marcarToggleActivo();
+  aplicarCapaNdvi();
+}
+
+function marcarToggleActivo() {
+  document.getElementById('tgNdvi').classList.toggle('active', ndviIndiceActivo === 'NDVI');
+  document.getElementById('tgNdwi').classList.toggle('active', ndviIndiceActivo === 'NDWI');
+  document.getElementById('tgOff').classList.toggle('active', ndviIndiceActivo === 'OFF');
+}
+
+function aplicarCapaNdvi() {
+  if (!map) return;
+  // Quitar capa anterior
+  if (ndviLayer) { map.removeLayer(ndviLayer); ndviLayer = null; }
+  const legend = document.getElementById('ndviLegend');
+  const info   = document.getElementById('ndviInfo');
+
+  if (ndviIndiceActivo === 'OFF' || !ndviInstanceId) {
+    legend.classList.remove('show');
+    info.textContent = 'Capa apagada';
+    return;
+  }
+
+  const url = `https://sh.dataspace.copernicus.eu/ogc/wms/${ndviInstanceId}`;
+  ndviLayer = L.tileLayer.wms(url, {
+    layers: ndviIndiceActivo,          // nombre de la capa en tu configuración SH
+    format: 'image/png',
+    transparent: true,
+    maxcc: ndviNubes,                  // % máximo de nubes
+    time: rangoFechasReciente(),       // últimos 30 días → mosaico más reciente
+    opacity: ndviOpacidad,
+    attribution: '© Copernicus / Sentinel-2'
+  });
+  ndviLayer.addTo(map);
+  // Asegurar que los marcadores queden por encima
+  Object.values(markers).forEach(({ marker }) => marker.setZIndexOffset(1000));
+
+  dibujarLeyenda();
+  info.textContent = `${ndviIndiceActivo} · imagen más reciente (últimos 30 días, nubes ≤${ndviNubes}%)`;
+}
+
+function dibujarLeyenda() {
+  const legend = document.getElementById('ndviLegend');
+  if (ndviIndiceActivo === 'NDVI') {
+    legend.innerHTML = `
+      <div class="legend-bar" style="background:linear-gradient(90deg,#a50026,#d73027,#fdae61,#fee08b,#d9ef8b,#a6d96a,#66bd63,#1a9850,#006837);"></div>
+      <div class="legend-labels"><span>Suelo desnudo</span><span>Vegetación vigorosa</span></div>`;
+    legend.classList.add('show');
+  } else if (ndviIndiceActivo === 'NDWI') {
+    legend.innerHTML = `
+      <div class="legend-bar" style="background:linear-gradient(90deg,#8c510a,#d8b365,#f6e8c3,#c7eae5,#5ab4ac,#01665e);"></div>
+      <div class="legend-labels"><span>Seco</span><span>Húmedo / agua</span></div>`;
+    legend.classList.add('show');
+  } else {
+    legend.classList.remove('show');
+  }
+}
+
+function setOpacidad(v) {
+  ndviOpacidad = v / 100;
+  document.getElementById('ndviOpacityVal').textContent = v + '%';
+  if (ndviLayer) ndviLayer.setOpacity(ndviOpacidad);
+}
+
+function setNubes(v) {
+  ndviNubes = parseInt(v);
+  document.getElementById('ndviCloudVal').textContent = v + '%';
+  if (ndviLayer && ndviIndiceActivo !== 'OFF') aplicarCapaNdvi();
+}
+
+function colorMarcador(s) {
+  // Modo hídrico: colorear por % agua útil si hay estado disponible
+  if (mapaModoHidrico) {
+    const e = estadoHidrico[s.id];
+    if (e) return e.pct >= 60 ? '#1a9850' : e.pct >= 35 ? '#d46b08' : '#c0392b';
+    return '#9aa0a6'; // gris: sin dato
+  }
+  const done   = completados.includes(s.id);
+  const edited = !!coordsEditadas[s.id];
+  return done ? '#27ae60' : edited ? '#d46b08' : '#2d5a27';
+}
+
+function etiquetaMarcador(s) {
+  if (mapaModoHidrico) {
+    const e = estadoHidrico[s.id];
+    return e ? Math.round(e.pct) + '%' : s.id;
+  }
+  return s.id;
+}
+
+function crearMarcador(s) {
+  const bg = colorMarcador(s);
+  const icon = L.divIcon({
+    html: `<div style="background:${bg};color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${mapaModoHidrico?'11':'13'}px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.45);cursor:pointer">${etiquetaMarcador(s)}</div>`,
+    className:'', iconSize:[34,34], iconAnchor:[17,17]
+  });
+  const m = L.marker([s.lat, s.lon], { icon, draggable: false })
+    .addTo(map)
+    .bindPopup(buildPopupHTML(s));
+  m.on('dragend', e => {
+    const ll = e.target.getLatLng();
+    tempLatLng = ll;
+    document.getElementById('editBarMsg').textContent = `S${editingSectorId}: ${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;
+  });
+  markers[s.id] = { marker: m, sector: s };
+}
+
+function buildPopupHTML(s) {
+  const e = estadoHidrico[s.id];
+  const hidrico = e ? `<br><span style="font-size:11px;">💧 Agua útil: <b style="color:${e.pct>=60?'#1a9850':e.pct>=35?'#d46b08':'#c0392b'}">${e.au.toFixed(0)} mm (${e.pct.toFixed(0)}%)</b> <span style="color:#999">${e.fuente==='balance'?'· balance hoy':'· medido'}</span></span>` : '';
+  return `<b>${esc(nombreSector(s))}</b>${coordsEditadas[s.id] ? ' <span style="background:#d46b08;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;">MOD</span>' : ''}<br>
+    <span style="font-family:monospace;font-size:11px;">${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}</span>${hidrico}<br><br>
+    <button onclick="openNavModal(${s.id})" style="background:#2d5a27;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px;margin-right:4px">🧭 Ir</button>
+    <button onclick="abrirEditManualDesdePopup(${s.id})" style="background:#d46b08;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">✏️ Editar</button>`;
+}
+
+function refreshAllMarkers() {
+  const SECTORES = getSectores();
+  SECTORES.forEach(s => {
+    if (!markers[s.id]) { crearMarcador(s); return; }
+    const bg = colorMarcador(s);
+    const icon = L.divIcon({
+      html: `<div style="background:${bg};color:#fff;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${mapaModoHidrico?'11':'13'}px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.45);cursor:pointer">${etiquetaMarcador(s)}</div>`,
+      className:'', iconSize:[34,34], iconAnchor:[17,17]
+    });
+    markers[s.id].marker.setLatLng([s.lat, s.lon]);
+    markers[s.id].marker.setIcon(icon);
+    markers[s.id].marker.setPopupContent(buildPopupHTML(s));
+  });
+}
+
+function updateMarkers() { refreshAllMarkers(); }
+
+// ──── MODO EDICIÓN ARRASTRE ────────────────────────────────
+function toggleMapEdit() {
+  editModeActive = !editModeActive;
+  const btn  = document.getElementById('mapEditToggle');
+  const bar  = document.getElementById('editBar');
+  btn.textContent = editModeActive ? '🔒 Salir de edición' : '✏️ Editar puntos';
+  btn.classList.toggle('editing', editModeActive);
+
+  if (editModeActive) {
+    bar.classList.add('active');
+    bar.querySelector('#editBarMsg').textContent = 'Tocá un marcador para seleccionar, luego arrastrá';
+    // Hacer todos los marcadores draggables
+    Object.values(markers).forEach(({ marker, sector }) => {
+      marker.dragging.enable();
+      marker.on('click', () => {
+        editingSectorId = sector.id;
+        tempLatLng = marker.getLatLng();
+        document.getElementById('editBarMsg').textContent = `S${sector.id} seleccionado — arrastrá para mover`;
+        showToast(`Sector ${sector.id} seleccionado`);
+      });
+    });
+  } else {
+    bar.classList.remove('active');
+    editingSectorId = null; tempLatLng = null;
+    Object.values(markers).forEach(({ marker }) => {
+      marker.dragging.disable();
+      marker.off('click');
+      // Reattach popup on click
+    });
+    refreshAllMarkers();
+  }
+}
+
+function confirmarEdicionMapa() {
+  if (!editingSectorId || !tempLatLng) { showToast('⚠️ Seleccioná y mové un marcador primero'); return; }
+  guardarCoordenada(editingSectorId, tempLatLng.lat, tempLatLng.lng);
+  editingSectorId = null; tempLatLng = null;
+  document.getElementById('editBarMsg').textContent = 'Guardado ✔ — seleccioná otro marcador o salí';
+}
+
+function cancelarEdicionMapa() {
+  if (editingSectorId) {
+    // Revert marker to stored position
+    const s = getSectores().find(x => x.id === editingSectorId);
+    markers[editingSectorId].marker.setLatLng([s.lat, s.lon]);
+  }
+  editingSectorId = null; tempLatLng = null;
+  toggleMapEdit(); // salir del modo
+}
+
+// ──── MODAL EDICIÓN MANUAL ─────────────────────────────────
+function poblarDatalistsCampoLote() {
+  const campos = [...new Set(SECTORES_ORIG.map(s => s.campo).filter(Boolean))].sort();
+  const lotes  = [...new Set(SECTORES_ORIG.map(s => s.lote).filter(Boolean))].sort();
+  document.getElementById('listaCampos').innerHTML = campos.map(c => `<option value="${esc(c)}">`).join('');
+  document.getElementById('listaLotes').innerHTML  = lotes.map(l => `<option value="${esc(l)}">`).join('');
+}
+
+function abrirEditManual(id, e) {
+  if (e) e.stopPropagation();
+  modoAgregarSector = false;
+  const s = getSectores().find(x => x.id === id);
+  currentSector = s;
+  editingSectorId = id;
+  poblarDatalistsCampoLote();
+  document.getElementById('editModalTitle').innerHTML = `Editar ${esc(nombreSector(s))} <span class="edit-badge">EDITAR</span>`;
+  document.getElementById('editHintTxt').textContent = 'Ingresá las coordenadas manualmente, usá el GPS para tomar tu posición actual, o activá el modo arrastre en el mapa.';
+  document.getElementById('editNombre').value = s.nombre || '';
+  document.getElementById('editCampo').value = s.campo || '';
+  document.getElementById('editLote').value = s.lote || '';
+  document.getElementById('editLat').value = s.lat.toFixed(7);
+  document.getElementById('editLon').value = s.lon.toFixed(7);
+  document.getElementById('btnResetSector').style.display = '';
+  document.getElementById('btnEliminarSector').style.display = '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function abrirAgregarSector() {
+  modoAgregarSector = true;
+  editingSectorId = null;
+  currentSector = null;
+  poblarDatalistsCampoLote();
+  document.getElementById('editModalTitle').innerHTML = 'Agregar sector <span class="edit-badge">NUEVO</span>';
+  document.getElementById('editHintTxt').textContent = 'Ponele un nombre, asignale campo/lote y cargá su ubicación (a mano o con el GPS parado en el lote).';
+  document.getElementById('editNombre').value = '';
+  document.getElementById('editCampo').value = '';
+  document.getElementById('editLote').value = '';
+  document.getElementById('editLat').value = '';
+  document.getElementById('editLon').value = '';
+  document.getElementById('btnResetSector').style.display = 'none';
+  document.getElementById('btnEliminarSector').style.display = 'none';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function abrirEditManualDesdePopup(id) {
+  map.closePopup();
+  setTimeout(() => abrirEditManual(id, null), 150);
+}
+
+function guardarEdicionManual() {
+  const lat = parseFloat(document.getElementById('editLat').value);
+  const lon = parseFloat(document.getElementById('editLon').value);
+  const nombre = document.getElementById('editNombre').value.trim();
+  const campo = document.getElementById('editCampo').value.trim();
+  const lote = document.getElementById('editLote').value.trim();
+  if (isNaN(lat) || isNaN(lon)) { showToast('⚠️ Coordenadas inválidas'); return; }
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) { showToast('⚠️ Coordenadas fuera de rango'); return; }
+
+  if (modoAgregarSector) {
+    const nextId = SECTORES_ORIG.length ? Math.max(...SECTORES_ORIG.map(s => s.id)) + 1 : 1;
+    const nuevo = { id: nextId, lat, lon };
+    if (nombre) nuevo.nombre = nombre;
+    if (campo) nuevo.campo = campo;
+    if (lote) nuevo.lote = lote;
+    SECTORES_ORIG.push(nuevo);
+    // Polígono chico alrededor del punto, para que NDVI y exportaciones tengan algo con que trabajar
+    const d = 0.00035; // ~35-40 m de lado
+    SECTOR_POLY[nextId] = [[lon-d,lat-d],[lon+d,lat-d],[lon+d,lat+d],[lon-d,lat+d],[lon-d,lat-d]];
+    marcarCambio('sectores'); marcarCambio('sectorPoly');
+    modoAgregarSector = false;
+    closeModal('editModal');
+    renderLista(); if (map) refreshAllMarkers();
+    refrescarSelectsSectores();
+    renderResumenAgrupado();
+    showToast(`✅ ${nombreSector(nuevo)} agregado`);
+    return;
+  }
+
+  const s = SECTORES_ORIG.find(x => x.id === editingSectorId);
+  if (s) {
+    if (nombre) s.nombre = nombre; else delete s.nombre;
+    if (campo) s.campo = campo; else delete s.campo;
+    if (lote) s.lote = lote; else delete s.lote;
+    marcarCambio('sectores');
+    refrescarSelectsSectores();
+    renderResumenAgrupado();
+  }
+  guardarCoordenada(editingSectorId, lat, lon);
+  closeModal('editModal');
+}
+
+function eliminarSector() {
+  if (!editingSectorId) return;
+  const s = SECTORES_ORIG.find(x => x.id === editingSectorId);
+  if (!s) return;
+  if (!confirm(`¿Eliminar ${nombreSector(s)}? Se borran también sus muestras, cultivo/siembra, eventos y todo su historial. No se puede deshacer.`)) return;
+  const id = editingSectorId;
+  SECTORES_ORIG = SECTORES_ORIG.filter(x => x.id !== id);
+  delete SECTOR_POLY[id];
+  delete muestras[id];       localStorage.setItem('muestras_bh', JSON.stringify(muestras));             marcarCambio('muestras');
+  delete coordsEditadas[id]; localStorage.setItem('coords_editadas_bh', JSON.stringify(coordsEditadas)); marcarCambio('coordsEditadas');
+  completados = completados.filter(x => x !== id);
+                              localStorage.setItem('completados_bh', JSON.stringify(completados));       marcarCambio('completados');
+  delete sectorSuelo[id];    localStorage.setItem('sector_suelo_bh', JSON.stringify(sectorSuelo));       marcarCambio('sectorSuelo');
+  delete balanceCfg[id];     localStorage.setItem('balance_cfg_bh', JSON.stringify(balanceCfg));         marcarCambio('balanceCfg');
+  delete eventos[id];        localStorage.setItem('eventos_bh', JSON.stringify(eventos));                marcarCambio('eventos');
+  delete lluviaAuto[id];     localStorage.setItem('lluvia_auto_bh', JSON.stringify(lluviaAuto));         marcarCambio('lluviaAuto');
+  marcarCambio('sectores'); marcarCambio('sectorPoly');
+  closeModal('editModal');
+  renderLista(); if (map) refreshAllMarkers();
+  refrescarSelectsSectores();
+  renderResumenAgrupado();
+  showToast(`🗑️ ${nombreSector(s)} eliminado`);
+}
+
+// Resumen jerárquico: Campo → Lote → Sectores (con cultivo y estado hídrico si hay dato)
+function toggleMasResumen(){
+  const b = document.getElementById('masResumenBody');
+  const open = b.style.display === 'none';
+  b.style.display = open ? 'block' : 'none';
+  document.getElementById('masResumenArrow').textContent = open ? '▲' : '▼';
+}
+
+let resenaPronCargada = false;
+async function cargarResenaPronostico(force){
+  const cont = document.getElementById('resenaPronostico');
+  if (!cont) return;
+  if (!SECTORES_ORIG.length) { cont.innerHTML = '<p style="font-size:11px;color:var(--gris);text-align:center;padding:6px;">Sin sectores cargados todavía.</p>'; return; }
+  if (resenaPronCargada && !force) return;
+  cont.innerHTML = '<p style="font-size:11px;color:var(--gris);text-align:center;padding:6px;">⏳ Trayendo pronóstico…</p>';
+  try {
+    const cLat = SECTORES_ORIG.reduce((a,s) => a + s.lat, 0) / SECTORES_ORIG.length;
+    const cLon = SECTORES_ORIG.reduce((a,s) => a + s.lon, 0) / SECTORES_ORIG.length;
+    const dias = (await traerPronostico(cLat, cLon)).slice(0, 7);
+    const precipTotal = dias.reduce((a,d) => a + (d.precip||0), 0);
+    const diasHelada = dias.filter(d => d.tmin != null && d.tmin <= 3).length;
+    const diasViento = dias.filter(d => d.racha != null && d.racha > 50).length;
+    const diasTormenta = dias.filter(d => d.code >= 95 || d.precip >= 25).length;
+    cont.innerHTML = `
+      <div class="agua-cards" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px;">
+        <div class="agua-card" style="padding:10px 4px;"><div style="font-size:17px;">🌧️</div><div class="ac-val" style="font-size:18px;">${precipTotal.toFixed(0)}</div><div class="ac-lbl">mm previstos</div></div>
+        <div class="agua-card" style="padding:10px 4px;"><div style="font-size:17px;">🧊</div><div class="ac-val" style="font-size:18px;color:${diasHelada?'#1a6b8a':'#bbb'}">${diasHelada}</div><div class="ac-lbl">días c/helada</div></div>
+        <div class="agua-card" style="padding:10px 4px;"><div style="font-size:17px;">💨</div><div class="ac-val" style="font-size:18px;color:${diasViento?'#d46b08':'#bbb'}">${diasViento}</div><div class="ac-lbl">viento +50</div></div>
+        <div class="agua-card" style="padding:10px 4px;"><div style="font-size:17px;">⛈️</div><div class="ac-val" style="font-size:18px;color:${diasTormenta?'#6a3d9a':'#bbb'}">${diasTormenta}</div><div class="ac-lbl">tormentas</div></div>
+      </div>
+      <button class="btn-exportar" onclick="showPanel('pronostico', document.getElementById('tabPronostico'))" style="background:#6a3d9a;margin:0;">📅 Ver pronóstico y riego por sector</button>`;
+    resenaPronCargada = true;
+  } catch (e) {
+    cont.innerHTML = `<p style="font-size:11px;color:#c0392b;text-align:center;padding:6px;">❌ No se pudo traer el pronóstico (${esc(e.message)})</p>`;
+  }
+}
+
+function colorHidrico(pct) { return pct >= 60 ? '#1a9850' : pct >= 35 ? '#d46b08' : '#c0392b'; }
+
+// Promedio de AU%/mm de un conjunto de sectores (solo los que tienen dato en estadoHidrico)
+function agregarEstado(sects) {
+  const conDato = sects.filter(s => estadoHidrico[s.id]);
+  if (!conDato.length) return null;
+  const pct = conDato.reduce((a,s) => a + estadoHidrico[s.id].pct, 0) / conDato.length;
+  const au  = conDato.reduce((a,s) => a + estadoHidrico[s.id].au, 0) / conDato.length;
+  return { pct, au, conDato: conDato.length, total: sects.length };
+}
+
+function badgeHidrico(ag, chico) {
+  if (!ag) return `<span style="font-size:${chico?10:11}px;color:var(--gris);font-weight:600;">sin dato</span>`;
+  const col = colorHidrico(ag.pct);
+  const partial = ag.conDato < ag.total ? ` <span style="color:var(--gris);font-weight:600;">(${ag.conDato}/${ag.total})</span>` : '';
+  return `<span style="font-size:${chico?11:13}px;font-weight:800;color:${col};">${ag.au.toFixed(0)} mm · ${ag.pct.toFixed(0)}%</span>${partial}`;
+}
+
+function renderResumenAgrupado() {
+  const cont = document.getElementById('resumenAgrupado');
+  if (!cont) return;
+  if (!SECTORES_ORIG.length) { cont.innerHTML = '<p style="font-size:12px;color:var(--gris);text-align:center;padding:8px;">Sin sectores cargados todavía.</p>'; return; }
+  refrescarEstadoMedido();
+  const grupos = {};
+  SECTORES_ORIG.forEach(s => {
+    const campo = (s.campo && s.campo.trim()) || 'Sin campo asignado';
+    const lote  = (s.lote && s.lote.trim())   || 'Sin lote asignado';
+    (grupos[campo] = grupos[campo] || {})[lote] = grupos[campo][lote] || [];
+    grupos[campo][lote].push(s);
+  });
+  let html = '';
+  Object.keys(grupos).sort().forEach(campo => {
+    const todosCampo = Object.values(grupos[campo]).flat();
+    const agCampo = agregarEstado(todosCampo);
+    const barCampo = agCampo ? `<div style="height:6px;background:rgba(255,255,255,.25);border-radius:3px;margin-top:4px;overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,agCampo.pct))}%;background:#a8e063;border-radius:3px;"></div></div>` : '';
+    html += `<div style="margin-bottom:12px;border:1px solid var(--arena);border-radius:9px;overflow:hidden;">
+      <div style="padding:8px 11px;background:var(--tierra);color:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:800;">🏞️ ${esc(campo)}</span>
+          ${badgeHidrico(agCampo, false).replace('color:#1a9850','color:#a8e063').replace('color:#d46b08','color:#ffb066').replace('color:#c0392b','color:#ff8f80')}
+        </div>${barCampo}
+      </div>`;
+    Object.keys(grupos[campo]).sort().forEach(lote => {
+      const sects = grupos[campo][lote].sort((a,b) => a.id - b.id);
+      const agLote = agregarEstado(sects);
+      html += `<div style="padding:8px 11px;border-top:1px solid var(--arena);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:800;color:var(--campo);">📍 ${esc(lote)} <span style="color:var(--gris);font-weight:600;">(${sects.length})</span></span>
+          ${badgeHidrico(agLote, true)}
+        </div>`;
+      sects.forEach(s => {
+        const cfg = balanceCfg[s.id];
+        const cultivoTxt = (cfg && cfg.cultivo && cultivos[cfg.cultivo]) ? cultivos[cfg.cultivo].nombre : 'sin cultivo';
+        const e = estadoHidrico[s.id];
+        const col = e ? colorHidrico(e.pct) : '#9aa0a6';
+        const fuenteTxt = e ? (e.fuente === 'balance' ? ' ⚡' : ' 📏') : '';
+        const estTxt = e ? `${e.au.toFixed(0)} mm · ${e.pct.toFixed(0)}%${fuenteTxt}` : 'sin dato';
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:11.5px;">
+          <span>${esc(nombreSector(s))} <span style="color:var(--gris);">· ${esc(cultivoTxt)}</span></span>
+          <span style="font-weight:700;color:${col};">${estTxt}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  cont.innerHTML = html;
+}
+
+// Reconstruye los <select> de sector en todas las pestañas tras agregar/renombrar/eliminar
+function refrescarSelectsSectores() {
+  const targets = [
+    { id: 'regSectorSelect', placeholder: '— Seleccionar sector —' },
+    { id: 'ndvitSector', placeholder: null, allOption: true },
+    { id: 'aguaSector', placeholder: '— Seleccionar —' },
+    { id: 'balSector', placeholder: '— Seleccionar —' },
+    { id: 'pronSector', placeholder: '— Seleccionar —' },
+  ];
+  targets.forEach(t => {
+    const sel = document.getElementById(t.id);
+    if (!sel) return;
+    const prevVal = sel.value;
+    sel.innerHTML = '';
+    if (t.allOption) sel.add(new Option('— Todos los sectores —', 'ALL'));
+    if (t.placeholder) sel.add(new Option(t.placeholder, ''));
+    SECTORES_ORIG.forEach(s => sel.add(new Option(nombreSector(s), s.id)));
+    if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
+  });
+}
+
+function usarGPSEnEdicion() {
+  if (!navigator.geolocation) { showToast('GPS no disponible en este dispositivo'); return; }
+  showToast('📍 Obteniendo ubicación...');
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.getElementById('editLat').value = pos.coords.latitude.toFixed(7);
+    document.getElementById('editLon').value = pos.coords.longitude.toFixed(7);
+    showToast(`📍 GPS: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+  }, () => showToast('⚠️ No se pudo obtener el GPS'), { enableHighAccuracy: true, timeout: 8000 });
+}
+
+function resetearPunto() {
+  const orig = SECTORES_ORIG.find(x => x.id === editingSectorId);
+  document.getElementById('editLat').value = orig.lat.toFixed(7);
+  document.getElementById('editLon').value = orig.lon.toFixed(7);
+  delete coordsEditadas[editingSectorId];
+  localStorage.setItem('coords_editadas_bh', JSON.stringify(coordsEditadas));
+  marcarCambio('coordsEditadas');
+  closeModal('editModal');
+  renderLista(); refreshAllMarkers();
+  showToast(`Sector ${editingSectorId} restaurado al original`);
+}
+
+function guardarCoordenada(id, lat, lon) {
+  coordsEditadas[id] = { lat, lon };
+  localStorage.setItem('coords_editadas_bh', JSON.stringify(coordsEditadas));
+  marcarCambio('coordsEditadas');
+  renderLista(); refreshAllMarkers();
+  showToast(`✅ Sector ${id} → ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+}
+
+// ──── GPS CENTRAR MAPA ──────────────────────────────────────
+function centrarGPS() {
+  if (!navigator.geolocation) { showToast('GPS no disponible'); return; }
+  showToast('📍 Localizando...');
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (!map) return;
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    map.setView(ll, 16);
+    L.circleMarker(ll, { radius:8, color:'#1a6b8a', fillColor:'#2590b8', fillOpacity:0.9, weight:2 })
+      .addTo(map).bindPopup('📍 Mi ubicación').openPopup();
+  }, () => showToast('⚠️ No se pudo obtener GPS'), { enableHighAccuracy: true });
+}
+
+// ──── MODAL NAVEGACION ─────────────────────────────────────
+function openNavModal(id) {
+  if (map) map.closePopup();
+  currentSector = getSectores().find(s => s.id === id);
+  editingSectorId = id;
+  document.getElementById('modalTitle').textContent = nombreSector(currentSector);
+  document.getElementById('modalCoords').textContent = `${currentSector.lat.toFixed(6)}, ${currentSector.lon.toFixed(6)}`;
+  document.getElementById('navModal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openGoogleMaps() {
+  const { lat, lon } = currentSector;
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`, '_blank');
+  closeModal('navModal');
+}
+function openWaze() {
+  const { lat, lon } = currentSector;
+  window.open(`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`, '_blank');
+  closeModal('navModal');
+}
+function copyCoords() {
+  const { lat, lon, id } = currentSector;
+  navigator.clipboard.writeText(`SECTOR ${id}: ${lat.toFixed(6)}, ${lon.toFixed(6)}`).catch(() => {});
+  showToast('Coordenadas copiadas'); closeModal('navModal');
+}
+function irARegistro() {
+  closeModal('navModal');
+  document.querySelectorAll('.tab-btn')[2].click();
+  document.getElementById('regSectorSelect').value = currentSector.id;
+}
+
+// ──── REGISTRO ─────────────────────────────────────────────
+function populateRegSelect() {
+  const sel = document.getElementById('regSectorSelect');
+  SECTORES_ORIG.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = nombreSector(s);
+    sel.appendChild(opt);
+  });
+  document.getElementById('regFecha').value = new Date().toISOString().split('T')[0];
+}
+
+function guardarMuestra() {
+  const sectorId = parseInt(document.getElementById('regSectorSelect').value);
+  if (!sectorId) { showToast('⚠️ Seleccioná un sector'); return; }
+  const fecha    = document.getElementById('regFecha').value;
+  const operador = document.getElementById('regOperador').value;
+  const obs      = document.getElementById('regObs').value;
+  const horizontes = [];
+  let allFilled = true;
+  PROFUNDIDADES.forEach((prof, i) => {
+    const ph = parseFloat(document.getElementById(`ph_${i}`).value);
+    const ps = parseFloat(document.getElementById(`ps_${i}`).value);
+    if (isNaN(ph) || isNaN(ps)) { allFilled = false; return; }
+    horizontes.push({ profundidad: prof, ph, ps, hg: parseFloat(((ph - ps) / ps * 100).toFixed(2)) });
+  });
+  if (!allFilled || horizontes.length < 6) { showToast('⚠️ Completar todos los horizontes'); return; }
+  const sector = getSectores().find(s => s.id === sectorId);
+  const muestra = { sectorId, lat: sector.lat, lon: sector.lon, fecha, operador, obs, horizontes };
+  if (!muestras[sectorId]) muestras[sectorId] = [];
+  muestras[sectorId].push(muestra);
+  localStorage.setItem('muestras_bh', JSON.stringify(muestras));
+  marcarCambio('muestras');
+  if (!completados.includes(sectorId)) { completados.push(sectorId); localStorage.setItem('completados_bh', JSON.stringify(completados)); marcarCambio('completados'); }
+  renderLista(); updateMarkers();
+  showToast(`✅ Sector ${sectorId} guardado`);
+  PROFUNDIDADES.forEach((_, i) => { document.getElementById(`ph_${i}`).value = ''; document.getElementById(`ps_${i}`).value = ''; });
+  document.getElementById('regObs').value = '';
+}
+
+// ──── RESUMEN ──────────────────────────────────────────────
+function updateResumen() {
+  const done = completados.length, total = SECTORES_ORIG.length;
+  const pct  = Math.round(done / total * 100);
+  document.getElementById('progPct').textContent = pct + '%';
+  document.getElementById('progSub').textContent = `${done} de ${total} sectores completados`;
+  document.getElementById('progBar').style.width = pct + '%';
+  document.getElementById('sumDone').textContent = done;
+  document.getElementById('sumPend').textContent = total - done;
+  document.getElementById('sumEditados').textContent = Object.keys(coordsEditadas).length;
+  const hoy = new Date().toISOString().split('T')[0];
+  let hoyCount = 0;
+  Object.values(muestras).forEach(arr => arr.forEach(m => { if (m.fecha === hoy) hoyCount++; }));
+  document.getElementById('sumHoy').textContent = hoyCount;
+  const container = document.getElementById('muestrasListResumen');
+  container.innerHTML = '';
+  const keys = Object.keys(muestras);
+  if (!keys.length) { container.innerHTML = '<p style="color:var(--gris);font-size:13px;text-align:center;padding:16px;">Sin muestras registradas aún.</p>'; return; }
+  keys.sort((a,b) => a-b).forEach(sid => {
+    muestras[sid].forEach(m => {
+      const div = document.createElement('div');
+      div.style.cssText = 'background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:8px;box-shadow:var(--shadow);font-size:12px;';
+      div.innerHTML = `<b>SECTOR ${sid}</b> · ${m.fecha} · ${m.operador || '—'}<br>${m.horizontes.map(h => `<span style="color:var(--campo);margin-right:8px;">${h.profundidad}cm: Hg=${h.hg}%</span>`).join('')}`;
+      container.appendChild(div);
+    });
+  });
+}
+
+// ──── CSV EXPORT ───────────────────────────────────────────
+function exportarCSV() {
+  const SECTORES = getSectores();
+  let rows = [['Sector','Campo','Lote','Lat','Lon','Lat_orig','Lon_orig','Editado','Fecha','Operador','Profundidad_cm','Peso_Humedo_g','Peso_Seco_g','Hg_%','Observaciones']];
+  SECTORES.forEach(s => {
+    if (!muestras[s.id]) return;
+    const orig = SECTORES_ORIG.find(x => x.id === s.id);
+    muestras[s.id].forEach(m => {
+      m.horizontes.forEach(h => {
+        rows.push([s.id, `"${s.campo||''}"`, `"${s.lote||''}"`, s.lat.toFixed(6), s.lon.toFixed(6), orig.lat.toFixed(6), orig.lon.toFixed(6), coordsEditadas[s.id] ? 'SI' : 'NO', m.fecha, m.operador||'', `"${h.profundidad}"`, h.ph, h.ps, h.hg, m.obs||'']);
+      });
+    });
+  });
+  if (rows.length === 1) { showToast('Sin datos para exportar'); return; }
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `balance_hidrico_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); showToast('✅ CSV exportado');
+}
+
+// ──── KML EXPORT ───────────────────────────────────────────
+function exportarKML() {
+  const SECTORES = getSectores();
+  let placemarks = SECTORES.map(s => {
+    const edited = coordsEditadas[s.id];
+    const done   = completados.includes(s.id);
+    const estado = done ? 'MUESTREADO' : edited ? 'COORDENADA MODIFICADA' : 'PENDIENTE';
+    const desc   = [estado, s.campo ? `Campo: ${s.campo}` : '', s.lote ? `Lote: ${s.lote}` : ''].filter(Boolean).join(' · ');
+    return `  <Placemark>
+    <name>${esc(nombreSector(s))}</name>
+    <description>${esc(desc)}</description>
+    <Point><coordinates>${s.lon.toFixed(7)},${s.lat.toFixed(7)},0</coordinates></Point>
+  </Placemark>`;
+  }).join('\n');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Balance Hídrico — Puntos de Muestreo</name>
+  <description>Exportado el ${new Date().toLocaleDateString('es-AR')}</description>
+${placemarks}
+</Document>
+</kml>`;
+  const blob = new Blob([kml], { type:'application/vnd.google-earth.kml+xml' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `puntos_muestreo_bh_${new Date().toISOString().split('T')[0]}.kml`;
+  a.click(); showToast('✅ KML exportado');
+}
+
+// ──── TOAST ────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: DIFERENCIAL DE NDVI (Statistical API Sentinel-2)
+// ══════════════════════════════════════════════════════════
+const SECTOR_POLY_DEFAULT_ADMIN = {"1":[[-63.7347572,-31.6540069],[-63.7336599,-31.6593911],[-63.7307676,-31.6590544],[-63.7319102,-31.6535627],[-63.7347572,-31.6540069]],"2":[[-63.7291549,-31.6531179],[-63.7318987,-31.6535627],[-63.7307562,-31.6590545],[-63.7278982,-31.6587176],[-63.7291549,-31.6531179]],"3":[[-63.7358991,-31.6484663],[-63.7347684,-31.6539678],[-63.7319441,-31.6534942],[-63.7331548,-31.6479337],[-63.7358991,-31.6484663]],"4":[[-63.7291889,-31.6530592],[-63.7303878,-31.6474305],[-63.7331433,-31.6479241],[-63.7319326,-31.6534942],[-63.7291889,-31.6530592]],"5":[[-63.7381029,-31.6552099],[-63.7358663,-31.6551628],[-63.7358681,-31.648935],[-63.7359358,-31.6487785],[-63.7381051,-31.64907],[-63.7381029,-31.6552099]],"6":[[-63.740488,-31.6551878],[-63.7381142,-31.6551903],[-63.7381166,-31.6490699],[-63.7405384,-31.6493991],[-63.740488,-31.6551878]],"7":[[-63.7430454,-31.6552039],[-63.740511,-31.6551975],[-63.7405384,-31.6493991],[-63.7430867,-31.6497665],[-63.7430454,-31.6552039]],"8":[[-63.7382396,-31.6599246],[-63.7346012,-31.6595138],[-63.7345896,-31.6578642],[-63.7349335,-31.6562323],[-63.7358627,-31.6562763],[-63.7358796,-31.6554172],[-63.7382304,-31.6554149],[-63.7382396,-31.6599246]],"9":[[-63.7399268,-31.6601203],[-63.7382512,-31.6599441],[-63.738242,-31.6554344],[-63.7398821,-31.6554643],[-63.7399268,-31.6601203]],"10":[[-63.7415224,-31.6603366],[-63.7399383,-31.66013],[-63.7398821,-31.6554546],[-63.7414992,-31.6554852],[-63.7415224,-31.6603366]],"11":[[-63.7430947,-31.660495],[-63.7415224,-31.6603366],[-63.7415222,-31.6554851],[-63.7430474,-31.6554876],[-63.7430947,-31.660495]],"12":[[-63.734396,-31.6596408],[-63.7360514,-31.659812],[-63.7360514,-31.6686085],[-63.7342665,-31.6685308],[-63.734396,-31.6596408]],"13":[[-63.7360668,-31.6597988],[-63.7377996,-31.6599831],[-63.7377998,-31.6686875],[-63.7360669,-31.6686085],[-63.7360668,-31.6597988]],"14":[[-63.737815,-31.6599963],[-63.7395633,-31.6601806],[-63.7395792,-31.6687928],[-63.7378153,-31.6687139],[-63.737815,-31.6599963]],"15":[[-63.7395633,-31.6601806],[-63.7413425,-31.6604044],[-63.741374,-31.6688586],[-63.7395792,-31.6687796],[-63.7395633,-31.6601806]],"16":[[-63.7413425,-31.6604175],[-63.7431527,-31.6606281],[-63.743107,-31.6689375],[-63.741374,-31.6688454],[-63.7413425,-31.6604175]]};
+
+// Endpoint del proxy (Cloudflare Worker) — resuelve el CORS
+let workerUrl = localStorage.getItem('sh_worker_url') || '';
+let ndvitChartObj = null;
+let ultimaSerie = null; // para exportar
+
+// Evalscript: NDVI medio por sector, con dataMask
+const EVALSCRIPT_NDVI = `//VERSION=3
+function setup() {
+  return {
+    input: [{ bands: ["B04","B08","dataMask"] }],
+    output: [
+      { id: "ndvi", bands: 1, sampleType: "FLOAT32" },
+      { id: "dataMask", bands: 1 }
+    ]
+  };
+}
+function evaluatePixel(s) {
+  let ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
+  return { ndvi: [ndvi], dataMask: [s.dataMask] };
+}`;
+
+function mostrarConfigWorkerNdvi() {
+  document.getElementById('oauthCard').style.display = 'block';
+  document.getElementById('workerUrl').value = workerUrl;
+  document.getElementById('workerUrl').focus();
+}
+
+function ndvitInit() {
+  // poblar selector de sectores
+  const sel = document.getElementById('ndvitSector');
+  SECTORES_ORIG.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = nombreSector(s);
+    sel.appendChild(o);
+  });
+  document.getElementById('workerUrl').value = workerUrl;
+  if (workerUrl) {
+    document.getElementById('oauthCard').style.display = 'none';
+  }
+}
+
+function guardarWorkerUrl() {
+  workerUrl = document.getElementById('workerUrl').value.trim().replace(/\/$/, '');
+  if (!workerUrl) { showToast('⚠️ Pegá la URL del Worker'); return; }
+  if (!/^https:\/\//.test(workerUrl)) { showToast('⚠️ La URL debe empezar con https://'); return; }
+  localStorage.setItem('sh_worker_url', workerUrl);
+  document.getElementById('oauthCard').style.display = 'none';
+  showToast('✅ URL del Worker guardada');
+}
+
+// Consulta vía proxy (Worker) para un sector → serie [{fecha, ndvi}]
+async function consultarSerieSector(sectorId, dias, nubes) {
+  const poly = SECTOR_POLY[sectorId];
+  if (!poly) throw new Error(`Sin polígono para sector ${sectorId}`);
+
+  // La Statistical API exige que (to - from) sea múltiplo exacto del intervalo.
+  // Usamos intervalo de 1 día y alineamos a medianoche UTC para evitar errores de fecha.
+  const hoy = new Date();
+  hoy.setUTCHours(0,0,0,0);
+  const desde = new Date(hoy);
+  desde.setUTCDate(hoy.getUTCDate() - dias);
+  // 'to' exclusivo: sumamos un día para incluir la fecha de hoy
+  const finExclusivo = new Date(hoy);
+  finExclusivo.setUTCDate(hoy.getUTCDate() + 1);
+  const iso = d => d.toISOString().split('T')[0] + 'T00:00:00Z';
+
+  const payload = {
+    input: {
+      bounds: {
+        geometry: { type: 'Polygon', coordinates: [poly] },
+        properties: { crs: 'http://www.opengis.net/def/crs/EPSG/0/4326' }
+      },
+      data: [{
+        type: 'sentinel-2-l2a',
+        dataFilter: { maxCloudCoverage: nubes }
+      }]
+    },
+    aggregation: {
+      timeRange: { from: iso(desde), to: iso(finExclusivo) },
+      aggregationInterval: { of: 'P1D' }, // 1 día; la API agrupa por adquisición real
+      evalscript: EVALSCRIPT_NDVI,
+      resx: 10, resy: 10
+    }
+  };
+
+  const r = await fetch(workerUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let detalle = t.slice(0, 200);
+    try {
+      const ej = JSON.parse(t);
+      if (ej.error && ej.error.message) detalle = ej.error.message;
+    } catch(_) {}
+    throw new Error(`API ${r.status}: ${detalle}`);
+  }
+  const j = await r.json();
+  const serie = [];
+  (j.data || []).forEach(item => {
+    // Saltear intervalos sin datos (días sin paso del satélite)
+    const out = item.outputs && item.outputs.ndvi;
+    if (!out || !out.bands) return;
+    // El nombre de la banda puede variar (B0 o el primero disponible)
+    const bandKey = Object.keys(out.bands)[0];
+    const stats = out.bands[bandKey] && out.bands[bandKey].stats;
+    if (!stats) return;
+    // sampleCount > 0 y mean válido: hay píxeles reales
+    const tieneDatos = (stats.sampleCount == null || stats.sampleCount > 0);
+    if (stats.mean != null && !isNaN(stats.mean) && tieneDatos) {
+      const fecha = (item.interval && item.interval.from ? item.interval.from : '').split('T')[0];
+      if (fecha) serie.push({ fecha, ndvi: stats.mean });
+    }
+  });
+  serie.sort((a,b) => a.fecha.localeCompare(b.fecha));
+  return serie;
+}
+
+async function consultarNdviTemporal() {
+  if (!workerUrl) {
+    showToast('⚠️ Configurá la URL del Worker primero');
+    document.getElementById('oauthCard').style.display = 'block';
+    return;
+  }
+  const sectorVal = document.getElementById('ndvitSector').value;
+  const dias  = parseInt(document.getElementById('ndvitPeriodo').value);
+  const nubes = parseInt(document.getElementById('ndvitCloud').value);
+  const status = document.getElementById('ndvitStatus');
+  const diffCards = document.getElementById('ndvitDiffCards');
+  const chartCard = document.getElementById('ndvitChartCard');
+
+  diffCards.innerHTML = '';
+  document.getElementById('ndvitKcNota').style.display = 'none';
+  status.className = 'ndvit-status loading';
+  status.textContent = '⏳ Consultando Sentinel-2... (puede tardar unos segundos)';
+
+  try {
+    if (sectorVal === 'ALL') {
+      await consultarTodos(dias, nubes);
+    } else {
+      await consultarUno(parseInt(sectorVal), dias, nubes);
+    }
+    status.className = 'ndvit-status';
+    status.textContent = '';
+  } catch (e) {
+    status.className = 'ndvit-status error';
+    status.textContent = '❌ ' + e.message;
+    chartCard.style.display = 'none';
+  }
+}
+
+// Un solo sector → gráfico de línea + diferencial
+// Interpola el NDVI día a día entre las fechas con imagen válida.
+// Antes de la primera imagen / después de la última, mantiene el valor más cercano (flat).
+function interpolarNdviDiario(serieNdvi, fechasObjetivo) {
+  const pts = serieNdvi.map(p => ({ t: new Date(p.fecha + 'T00:00:00').getTime(), v: p.ndvi })).sort((a,b) => a.t - b.t);
+  if (!pts.length) return {};
+  const out = {};
+  fechasObjetivo.forEach(f => {
+    const t = new Date(f + 'T00:00:00').getTime();
+    if (t <= pts[0].t) { out[f] = pts[0].v; return; }
+    if (t >= pts[pts.length-1].t) { out[f] = pts[pts.length-1].v; return; }
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (t >= pts[i].t && t <= pts[i+1].t) {
+        const frac = (t - pts[i].t) / (pts[i+1].t - pts[i].t);
+        out[f] = pts[i].v + (pts[i+1].v - pts[i].v) * frac;
+        return;
+      }
+    }
+  });
+  return out;
+}
+
+// Kc estimado a partir del NDVI (Bausch & Neale, aproximación empírica).
+// Se limita entre un piso de suelo desnudo y el techo del propio cultivo (Kc medio de su curva FAO-56).
+function kcNdviEstimado(ndvi, techo) {
+  const KC_MIN = 0.15;
+  const kc = 1.25 * ndvi;
+  return Math.max(KC_MIN, Math.min(techo, kc));
+}
+
+async function consultarUno(sectorId, dias, nubes) {
+  const serie = await consultarSerieSector(sectorId, dias, nubes);
+  if (serie.length < 2) throw new Error('Datos insuficientes (menos de 2 fechas con imagen válida). Probá subir el % de nubes o ampliar el período.');
+
+  ultimaSerie = { tipo: 'uno', sectorId, serie };
+  const actual    = serie[serie.length - 1];
+  const anterior  = serie[serie.length - 2];
+  const promedio  = serie.reduce((a,x) => a + x.ndvi, 0) / serie.length;
+  const difAnt    = actual.ndvi - anterior.ndvi;
+  const difProm   = actual.ndvi - promedio;
+
+  renderDiffCards([
+    { val: actual.ndvi.toFixed(3), lbl: 'NDVI actual', sub: actual.fecha, cls: 'diff-flat' },
+    { val: (difAnt>=0?'+':'') + difAnt.toFixed(3), lbl: 'vs. imagen anterior', sub: anterior.fecha, cls: difClase(difAnt) },
+    { val: (difProm>=0?'+':'') + difProm.toFixed(3), lbl: 'vs. promedio período', sub: `media ${promedio.toFixed(3)}`, cls: difClase(difProm) },
+    { val: serie.length, lbl: 'imágenes válidas', sub: `nubes ≤${nubes}%`, cls: 'diff-flat' },
+  ]);
+
+  // Comparación de Kc (solo si el sector tiene cultivo/siembra configurados en Balance/Pronóstico)
+  let kcInfo = null;
+  const cfg = balanceCfg[sectorId];
+  if (cfg && cfg.cultivo && cfg.siembra && cultivos[cfg.cultivo]) {
+    const cult = cultivos[cfg.cultivo];
+    const siembra = new Date(cfg.siembra + 'T00:00:00');
+    const techo = Math.max(...cult.kc);
+    const kcCurva = serie.map(p => {
+      const dia = Math.floor((new Date(p.fecha + 'T00:00:00') - siembra) / 86400000);
+      return kcDelDia(dia, cult.etapas, cult.kc);
+    });
+    const kcNdvi = serie.map(p => kcNdviEstimado(p.ndvi, techo));
+    kcInfo = { nombreCultivo: cult.nombre, kcCurva, kcNdvi };
+  }
+
+  dibujarGraficoLinea(sectorId, serie, promedio, kcInfo);
+  document.getElementById('ndvitExportBtn').style.display = 'block';
+  document.getElementById('ndvitKcNota').style.display = kcInfo ? 'block' : 'none';
+}
+
+// Todos los sectores → tabla comparativa de diferenciales + gráfico de barras
+async function consultarTodos(dias, nubes) {
+  const status = document.getElementById('ndvitStatus');
+  const resultados = [];
+  for (const s of SECTORES_ORIG) {
+    status.textContent = `⏳ Consultando sector ${s.id} de ${SECTORES_ORIG.length}...`;
+    try {
+      const serie = await consultarSerieSector(s.id, dias, nubes);
+      if (serie.length >= 2) {
+        const actual = serie[serie.length-1], anterior = serie[serie.length-2];
+        resultados.push({ id: s.id, actual: actual.ndvi, fecha: actual.fecha, dif: actual.ndvi - anterior.ndvi });
+      } else {
+        resultados.push({ id: s.id, actual: null, fecha: '—', dif: null });
+      }
+    } catch(e) {
+      resultados.push({ id: s.id, actual: null, fecha: 'error', dif: null });
+    }
+  }
+  ultimaSerie = { tipo: 'todos', resultados };
+  renderTablaTodos(resultados);
+  dibujarGraficoBarras(resultados);
+  document.getElementById('ndvitExportBtn').style.display = 'block';
+}
+
+function difClase(d) { return d > 0.01 ? 'diff-up' : d < -0.01 ? 'diff-down' : 'diff-flat'; }
+
+function renderDiffCards(cards) {
+  const c = document.getElementById('ndvitDiffCards');
+  c.innerHTML = cards.map(x => `
+    <div class="diff-card">
+      <div class="diff-val ${x.cls}">${x.val}</div>
+      <div class="diff-lbl">${x.lbl}</div>
+      <div class="diff-sub">${x.sub}</div>
+    </div>`).join('');
+}
+
+function renderTablaTodos(res) {
+  const c = document.getElementById('ndvitDiffCards');
+  c.style.gridTemplateColumns = '1fr';
+  let rows = res.map(r => {
+    const dv = r.dif==null ? '—' : (r.dif>=0?'+':'') + r.dif.toFixed(3);
+    const cls = r.dif==null ? 'diff-flat' : difClase(r.dif);
+    const arrow = r.dif==null ? '' : r.dif>0.01 ? '▲' : r.dif<-0.01 ? '▼' : '▬';
+    return `<tr><td><b>S${r.id}</b></td><td>${r.actual==null?'—':r.actual.toFixed(3)}</td>
+      <td class="${cls}">${arrow} ${dv}</td><td style="font-size:10px;color:var(--gris)">${r.fecha}</td></tr>`;
+  }).join('');
+  c.innerHTML = `<table class="ndvit-table">
+    <tr><th>Sector</th><th>NDVI actual</th><th>Δ vs. anterior</th><th>Fecha</th></tr>
+    ${rows}</table>`;
+}
+
+function dibujarGraficoLinea(sectorId, serie, promedio, kcInfo) {
+  const card = document.getElementById('ndvitChartCard');
+  card.style.display = 'block';
+  document.getElementById('ndvitChartTitle').textContent = `Evolución NDVI — Sector ${sectorId}`;
+  const ctx = document.getElementById('ndvitChart');
+  if (ndvitChartObj) ndvitChartObj.destroy();
+
+  const datasets = [
+    { label: 'NDVI medio', data: serie.map(p => p.ndvi), yAxisID: 'yNdvi',
+      borderColor: '#1a9850', backgroundColor: 'rgba(26,152,80,0.12)',
+      fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#1a9850' },
+    { label: 'Promedio período', data: serie.map(() => promedio), yAxisID: 'yNdvi',
+      borderColor: '#d46b08', borderDash: [6,4], pointRadius: 0, fill: false }
+  ];
+  const scales = {
+    yNdvi: { suggestedMin: 0, suggestedMax: 1, position: 'left', title: { display: true, text: 'NDVI' } }
+  };
+
+  if (kcInfo) {
+    datasets.push(
+      { label: `Kc curva (${kcInfo.nombreCultivo}, FAO-56)`, data: kcInfo.kcCurva, yAxisID: 'yKc',
+        borderColor: '#6a3d9a', borderDash: [3,3], pointRadius: 2, fill: false, tension: 0.2 },
+      { label: 'Kc estimado (NDVI)', data: kcInfo.kcNdvi, yAxisID: 'yKc',
+        borderColor: '#0e7490', pointRadius: 3, pointStyle: 'rectRot', fill: false, tension: 0.2 }
+    );
+    scales.yKc = { suggestedMin: 0, suggestedMax: 1.4, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Kc' } };
+  }
+
+  ndvitChartObj = new Chart(ctx, {
+    type: 'line',
+    data: { labels: serie.map(p => p.fecha), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales,
+      plugins: { legend: { labels: { font: { size: 10 }, boxWidth: 16 } } }
+    }
+  });
+}
+
+function dibujarGraficoBarras(res) {
+  const card = document.getElementById('ndvitChartCard');
+  card.style.display = 'block';
+  document.getElementById('ndvitChartTitle').textContent = 'Diferencial NDVI por sector (actual vs. anterior)';
+  const ctx = document.getElementById('ndvitChart');
+  if (ndvitChartObj) ndvitChartObj.destroy();
+  const valid = res.filter(r => r.dif != null);
+  ndvitChartObj = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: valid.map(r => 'S' + r.id),
+      datasets: [{
+        label: 'Δ NDVI',
+        data: valid.map(r => r.dif),
+        backgroundColor: valid.map(r => r.dif >= 0 ? 'rgba(26,152,80,0.8)' : 'rgba(192,57,43,0.8)')
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { title: { display: true, text: 'Δ NDVI (actual − anterior)' } } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function exportarNdviCSV() {
+  if (!ultimaSerie) { showToast('Sin datos'); return; }
+  let rows;
+  if (ultimaSerie.tipo === 'uno') {
+    rows = [['Sector','Fecha','NDVI_medio']];
+    ultimaSerie.serie.forEach(p => rows.push([ultimaSerie.sectorId, p.fecha, p.ndvi.toFixed(4)]));
+  } else {
+    rows = [['Sector','NDVI_actual','Fecha','Diferencial_vs_anterior']];
+    ultimaSerie.resultados.forEach(r => rows.push([r.id, r.actual==null?'':r.actual.toFixed(4), r.fecha, r.dif==null?'':r.dif.toFixed(4)]));
+  }
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ndvi_diferencial_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); showToast('✅ CSV exportado');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: AGUA ÚTIL DEL SUELO (metodología INTA)
+// ══════════════════════════════════════════════════════════
+
+// Espesor de cada horizonte en cm (perfil 0-200)
+const ESPESOR_CM = [20, 20, 20, 40, 50, 50];
+const HZ_LABELS  = ['0-20','20-40','40-60','60-100','100-150','150-200'];
+
+// Parámetros por tipo de suelo (editables, guardados en localStorage)
+const SUELO_DEFAULT = {
+  FL: { nombre: 'Franco Limoso',  da: 1.25, auMax: 360, pmp: [28.6, 28.4, 25.8, 48.0, 60.0, 60.0] },
+  FA: { nombre: 'Franco Arenoso', da: 1.45, auMax: 286, pmp: [21.5, 21.3, 19.4, 36.0, 45.0, 45.0] }
+};
+let sueloParams = JSON.parse(localStorage.getItem('suelo_params_bh') || 'null') || JSON.parse(JSON.stringify(SUELO_DEFAULT));
+
+// Asignación de suelo por sector: sectores 3 y 4 = Franco Arenoso, resto Franco Limoso
+let sectorSuelo = JSON.parse(localStorage.getItem('sector_suelo_bh') || 'null');
+if (!sectorSuelo) {
+  sectorSuelo = {};
+  SECTORES_ORIG.forEach(s => { sectorSuelo[s.id] = (s.id === 3 || s.id === 4) ? 'FA' : 'FL'; });
+  localStorage.setItem('sector_suelo_bh', JSON.stringify(sectorSuelo));
+}
+
+let ultimoCalculoAgua = null;
+let sueloEnEdicion = 'FL';
+
+function aguaInit() {
+  const sel = document.getElementById('aguaSector');
+  SECTORES_ORIG.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = nombreSector(s);
+    sel.appendChild(o);
+  });
+  editarSuelo('FL');
+}
+
+// Identificador de suelo en la solapa Datos
+function actualizarSueloDatos() {
+  const sid = document.getElementById('regSectorSelect').value;
+  if (!sid) return;
+  document.getElementById('regSuelo').value = sectorSuelo[sid] || 'FL';
+}
+function guardarSueloSector() {
+  const sid = document.getElementById('regSectorSelect').value;
+  if (!sid) return;
+  sectorSuelo[sid] = document.getElementById('regSuelo').value;
+  localStorage.setItem('sector_suelo_bh', JSON.stringify(sectorSuelo));
+  marcarCambio('sectorSuelo');
+  showToast(`Suelo del sector ${sid}: ${sueloParams[sectorSuelo[sid]].nombre}`);
+}
+
+// En panel Agua Útil
+function mostrarSueloDe() {
+  const sid = document.getElementById('aguaSector').value;
+  if (!sid) return;
+  document.getElementById('aguaSuelo').value = sectorSuelo[sid] || 'FL';
+}
+function guardarSueloDesdeAgua() {
+  const sid = document.getElementById('aguaSector').value;
+  if (!sid) return;
+  sectorSuelo[sid] = document.getElementById('aguaSuelo').value;
+  localStorage.setItem('sector_suelo_bh', JSON.stringify(sectorSuelo));
+  marcarCambio('sectorSuelo');
+}
+
+// Cálculo principal
+function calcularAguaUtil() {
+  const sid = document.getElementById('aguaSector').value;
+  const status = document.getElementById('aguaStatus');
+  const resumen = document.getElementById('aguaResumen');
+  const tablaWrap = document.getElementById('aguaTablaWrap');
+  resumen.innerHTML = ''; tablaWrap.innerHTML = '';
+
+  if (!sid) { status.className = 'ndvit-status error'; status.textContent = '⚠️ Seleccioná un sector'; return; }
+  if (!muestras[sid] || muestras[sid].length === 0) {
+    status.className = 'ndvit-status error';
+    status.textContent = '⚠️ Este sector no tiene muestras cargadas. Cargá los pesos en la solapa Datos.';
+    document.getElementById('aguaExportBtn').style.display = 'none';
+    return;
+  }
+
+  // Usar la muestra más reciente
+  const m = muestras[sid][muestras[sid].length - 1];
+  const tipo = sectorSuelo[sid] || 'FL';
+  const P = sueloParams[tipo];
+
+  const filas = [];
+  let totLamina = 0, totPmp = 0, totAuAct = 0;
+
+  m.horizontes.forEach((h, i) => {
+    const ph = h.ph, ps = h.ps;
+    const hg = (ph - ps) / ps;               // g/g
+    const hv = hg * P.da;                     // cm3/cm3
+    const lamina = hv * ESPESOR_CM[i] * 10;   // mm (espesor cm × 10)
+    const pmp = P.pmp[i];
+    const auAct = lamina - pmp;               // mm
+    totLamina += lamina; totPmp += pmp; totAuAct += auAct;
+    filas.push({ hz: HZ_LABELS[i], hg: hg*100, hv: hv*100, lamina, pmp, auAct });
+  });
+
+  const auMax = P.auMax;
+  const pctAU = (totAuAct / auMax) * 100;
+
+  ultimoCalculoAgua = { sid, tipo, nombre: P.nombre, fecha: m.fecha, filas, totLamina, totPmp, totAuAct, auMax, pctAU, da: P.da };
+
+  status.className = 'ndvit-status';
+  status.textContent = `Muestra del ${m.fecha} · ${P.nombre} · da ${P.da}`;
+
+  renderResumenAgua(ultimoCalculoAgua);
+  renderTablaAgua(ultimoCalculoAgua);
+  document.getElementById('aguaExportBtn').style.display = 'block';
+}
+
+function colorPct(p) { return p >= 60 ? 'agua-color-ok' : p >= 35 ? 'agua-color-med' : 'agua-color-bad'; }
+function colorBar(p)  { return p >= 60 ? '#1a9850' : p >= 35 ? '#d46b08' : '#c0392b'; }
+function estadoTexto(p) { return p >= 60 ? 'Buen contenido' : p >= 35 ? 'Contenido medio' : 'Déficit hídrico'; }
+
+function renderResumenAgua(c) {
+  const pct = Math.max(0, Math.min(100, c.pctAU));
+  document.getElementById('aguaResumen').innerHTML = `
+    <div class="agua-cards">
+      <div class="agua-card">
+        <div class="ac-val ${colorPct(c.pctAU)}">${c.totAuAct.toFixed(1)}</div>
+        <div class="ac-lbl">Agua útil actual (mm)</div>
+        <div class="ac-sub">de ${c.auMax} mm máx</div>
+      </div>
+      <div class="agua-card">
+        <div class="ac-val ${colorPct(c.pctAU)}">${c.pctAU.toFixed(1)}%</div>
+        <div class="ac-lbl">% Agua útil</div>
+        <div class="ac-sub">${estadoTexto(c.pctAU)}</div>
+      </div>
+      <div class="agua-card full">
+        <div class="ac-bar-wrap"><div class="ac-bar" style="width:${pct}%;background:${colorBar(c.pctAU)}"></div></div>
+        <div class="ac-sub">Lámina total ${c.totLamina.toFixed(1)} mm · Límite mínimo ${c.totPmp.toFixed(1)} mm · Déficit a recargar ${Math.max(0, c.auMax - c.totAuAct).toFixed(1)} mm</div>
+      </div>
+    </div>`;
+}
+
+function renderTablaAgua(c) {
+  let rows = c.filas.map(f => `
+    <tr>
+      <td><b>${f.hz}</b></td>
+      <td>${f.hg.toFixed(1)}</td>
+      <td>${f.hv.toFixed(1)}</td>
+      <td>${f.lamina.toFixed(1)}</td>
+      <td>${f.pmp.toFixed(1)}</td>
+      <td class="${f.auAct>=0?'':'agua-color-bad'}">${f.auAct.toFixed(1)}</td>
+    </tr>`).join('');
+  document.getElementById('aguaTablaWrap').innerHTML = `
+    <table class="au-tabla">
+      <tr><th>Horiz.<br>cm</th><th>Hg<br>%</th><th>Hv<br>%</th><th>Lámina<br>mm</th><th>Lím.mín<br>mm</th><th>AU act.<br>mm</th></tr>
+      ${rows}
+      <tr class="fila-total"><td>TOTAL</td><td>—</td><td>—</td><td>${c.totLamina.toFixed(1)}</td><td>${c.totPmp.toFixed(1)}</td><td>${c.totAuAct.toFixed(1)}</td></tr>
+    </table>`;
+}
+
+// Parámetros editables
+function toggleParams() {
+  const b = document.getElementById('paramsBody');
+  const open = b.style.display === 'none';
+  b.style.display = open ? 'block' : 'none';
+  document.getElementById('paramsArrow').textContent = open ? '▲' : '▼';
+  if (open) editarSuelo(sueloEnEdicion);
+}
+function editarSuelo(tipo) {
+  sueloEnEdicion = tipo;
+  document.getElementById('ptFL').classList.toggle('active', tipo === 'FL');
+  document.getElementById('ptFA').classList.toggle('active', tipo === 'FA');
+  const P = sueloParams[tipo];
+  document.getElementById('pDa').value = P.da;
+  document.getElementById('pAuMax').value = P.auMax;
+  for (let i = 0; i < 6; i++) document.getElementById('pPmp' + i).value = P.pmp[i];
+}
+function guardarParams() {
+  const P = sueloParams[sueloEnEdicion];
+  P.da = parseFloat(document.getElementById('pDa').value) || P.da;
+  P.auMax = parseFloat(document.getElementById('pAuMax').value) || P.auMax;
+  for (let i = 0; i < 6; i++) {
+    const v = parseFloat(document.getElementById('pPmp' + i).value);
+    if (!isNaN(v)) P.pmp[i] = v;
+  }
+  localStorage.setItem('suelo_params_bh', JSON.stringify(sueloParams));
+  marcarCambio('sueloParams');
+  showToast(`✅ Parámetros de ${P.nombre} guardados`);
+}
+
+function exportarAguaCSV() {
+  if (!ultimoCalculoAgua) { showToast('Sin cálculo'); return; }
+  const c = ultimoCalculoAgua;
+  let rows = [['Sector','Tipo_suelo','Fecha','da','Horizonte_cm','Hg_%','Hv_%','Lamina_mm','Limite_min_mm','AU_actual_mm']];
+  c.filas.forEach(f => rows.push([c.sid, c.nombre, c.fecha, c.da, `"${f.hz}"`, f.hg.toFixed(2), f.hv.toFixed(2), f.lamina.toFixed(2), f.pmp.toFixed(2), f.auAct.toFixed(2)]));
+  rows.push(['','','','','TOTAL','','', c.totLamina.toFixed(2), c.totPmp.toFixed(2), c.totAuAct.toFixed(2)]);
+  rows.push(['','','','','AU_MAXIMA_mm','','','','', c.auMax]);
+  rows.push(['','','','','PORCENTAJE_AU','','','','', c.pctAU.toFixed(2)]);
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `agua_util_sector${c.sid}_${c.fecha}.csv`;
+  a.click(); showToast('✅ CSV exportado');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: BALANCE HÍDRICO DIARIO (FAO-56)
+//  AU(t) = AU(t-1) + Lluvia + Riego − ETc ;  ETc = ET0 × Kc
+//  ET0 y lluvia: Open-Meteo (FAO-56 Penman-Monteith)
+// ══════════════════════════════════════════════════════════
+
+// Base de cultivos (Kc FAO-56 ini/med/fin + duración de etapas en días)
+// etapas = [inicial, desarrollo, media, final]
+const CULTIVO_DEFAULT = {
+  trigo:    { nombre: 'Trigo',    kc: [0.40, 1.15, 0.30], etapas: [20, 50, 60, 30] },
+  maiz:     { nombre: 'Maíz',     kc: [0.30, 1.20, 0.35], etapas: [20, 40, 50, 30] },
+  soja:     { nombre: 'Soja',     kc: [0.40, 1.15, 0.50], etapas: [25, 35, 55, 25] },
+  girasol:  { nombre: 'Girasol',  kc: [0.35, 1.10, 0.35], etapas: [25, 35, 45, 25] },
+  sorgo:    { nombre: 'Sorgo',    kc: [0.30, 1.05, 0.55], etapas: [20, 35, 40, 30] },
+  cebada:   { nombre: 'Cebada',   kc: [0.30, 1.15, 0.25], etapas: [20, 50, 60, 30] },
+  alfalfa:  { nombre: 'Alfalfa',  kc: [0.40, 0.95, 0.90], etapas: [10, 20, 20, 10] },
+};
+let cultivos = JSON.parse(localStorage.getItem('cultivos_bh') || 'null') || JSON.parse(JSON.stringify(CULTIVO_DEFAULT));
+// Migración única: actualiza maíz y soja a etapas más realistas (Zona Núcleo) si el usuario no los tocó a mano.
+if (!localStorage.getItem('cultivos_bh_v2')) {
+  ['maiz','soja'].forEach(k => { cultivos[k] = JSON.parse(JSON.stringify(CULTIVO_DEFAULT[k])); });
+  localStorage.setItem('cultivos_bh', JSON.stringify(cultivos));
+  localStorage.setItem('cultivos_bh_v2', '1');
+}
+
+// Configuración por sector: cultivo + fecha de siembra + umbral riego (%)
+let balanceCfg = JSON.parse(localStorage.getItem('balance_cfg_bh') || '{}');
+// Eventos por sector: lluvias y riegos manuales [{fecha, tipo, mm}]
+let eventos = JSON.parse(localStorage.getItem('eventos_bh') || '{}');
+// Lluvia automática (Open-Meteo) por sector
+let lluviaAuto = JSON.parse(localStorage.getItem('lluvia_auto_bh') || '{}');
+// ──── Lluvias registradas por campo: {campo:{'YYYY-MM-DD':mm}} ────
+let lluvias = JSON.parse(localStorage.getItem('lluvias_bh') || '{}');
+function campoDeSector(sid){ const x = SECTORES_ORIG.find(z => String(z.id) === String(sid)); return (x && x.campo && String(x.campo).trim()) || ''; }
+function lluviaBase(sid, fecha, precAuto, usaAuto){
+  const campo = campoDeSector(sid);
+  const reg = campo && lluvias[campo] ? lluvias[campo][fecha] : undefined;
+  if (reg !== undefined && reg !== null) return reg;
+  return usaAuto ? (precAuto || 0) : 0;
+}
+function lluFechaLocal(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function lluGuardar(){
+  localStorage.setItem('lluvias_bh', JSON.stringify(lluvias));
+  marcarCambio('lluvias');
+  balanceAutoCargado = false;
+}
+function lluCampos(){
+  const set = new Set();
+  SECTORES_ORIG.forEach(x => { if (x.campo && String(x.campo).trim()) set.add(String(x.campo).trim()); });
+  Object.keys(lluvias).forEach(c => set.add(c));
+  return [...set].sort();
+}
+function renderLluvias(){
+  const sel = document.getElementById('lluCampo');
+  const prev = sel.value;
+  const campos = lluCampos();
+  if (!campos.length){
+    sel.innerHTML = '<option value="">— Asigná un Campo a los sectores (Sectores → Editar) —</option>';
+    document.getElementById('lluTabla').innerHTML = ''; document.getElementById('lluStats').textContent = '';
+    return;
+  }
+  sel.innerHTML = campos.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = campos.includes(prev) ? prev : campos[0];
+  const f = document.getElementById('lluFecha'); if (!f.value) f.value = lluFechaLocal();
+  const campo = sel.value, reg = lluvias[campo] || {};
+  const fechas = Object.keys(reg).sort().reverse();
+  const hoy = new Date(), mes = lluFechaLocal(hoy).slice(0,7);
+  const tot = fechas.reduce((a,k)=>a+reg[k],0), totMes = fechas.filter(k=>k.startsWith(mes)).reduce((a,k)=>a+reg[k],0);
+  document.getElementById('lluStats').innerHTML = `Mes actual: <b>${totMes.toFixed(1)} mm</b> · Total cargado: <b>${tot.toFixed(1)} mm</b> · ${fechas.length} registros`;
+  const nSec = SECTORES_ORIG.filter(x => (x.campo||'').trim() === campo).length;
+  document.getElementById('lluTabla').innerHTML = fechas.length
+    ? `<div style="font-size:11px;color:#777;margin-bottom:4px;">Aplica a ${nSec} sector(es) de ${esc(campo)}</div>` +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      fechas.map(k => { const [y,m,d]=k.split('-'); return `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 4px;">${d}/${m}/${y}</td><td style="padding:6px 4px;font-weight:700;">${reg[k]} mm</td><td style="text-align:right;"><button onclick="borrarLluvia('${k}')" style="border:none;background:none;font-size:16px;cursor:pointer;">🗑️</button></td></tr>`; }).join('') + '</table>'
+    : '<div style="font-size:12px;color:#777;">Sin lluvias cargadas para este campo.</div>';
+}
+function agregarLluvia(){
+  const campo = document.getElementById('lluCampo').value;
+  const fecha = document.getElementById('lluFecha').value;
+  const mm = parseFloat(String(document.getElementById('lluMm').value).replace(',','.'));
+  if (!campo) return showToast('Elegí un campo');
+  if (!fecha) return showToast('Elegí la fecha');
+  if (isNaN(mm) || mm < 0) return showToast('Ingresá los mm');
+  (lluvias[campo] = lluvias[campo] || {})[fecha] = Math.round(mm*10)/10;
+  lluGuardar();
+  document.getElementById('lluMm').value = '';
+  renderLluvias(); showToast('🌧️ Lluvia guardada');
+}
+function borrarLluvia(fecha){
+  const campo = document.getElementById('lluCampo').value;
+  if (!lluvias[campo]) return;
+  delete lluvias[campo][fecha];
+  if (!Object.keys(lluvias[campo]).length) delete lluvias[campo];
+  lluGuardar(); renderLluvias();
+}
+function importarLluviasPegadas(){
+  const campo = document.getElementById('lluCampo').value;
+  if (!campo) return showToast('Elegí un campo');
+  let n = 0, mal = 0;
+  document.getElementById('lluMasiva').value.split(/\r?\n/).forEach(linea => {
+    const t = linea.trim(); if (!t) return;
+    let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\s;,\t]+(\d+(?:[.,]\d+)?)/), y, mo, d, v;
+    if (m){ y=+m[1]; mo=+m[2]; d=+m[3]; v=m[4]; }
+    else {
+      m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})[\s;,\t]+(\d+(?:[.,]\d+)?)/);
+      if (!m){ mal++; return; }
+      d=+m[1]; mo=+m[2]; y=+m[3]; if (y<100) y+=2000; v=m[4];
+    }
+    const mm = parseFloat(v.replace(',','.'));
+    if (mo<1||mo>12||d<1||d>31||isNaN(mm)){ mal++; return; }
+    const f = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    (lluvias[campo] = lluvias[campo] || {})[f] = Math.round(mm*10)/10; n++;
+  });
+  if (n) lluGuardar();
+  document.getElementById('lluMasiva').value = mal ? '' : '';
+  renderLluvias(); showToast(`🌧️ ${n} importadas` + (mal ? ` · ${mal} líneas no reconocidas` : ''));
+}
+
+let balanceChartObj = null;
+let ultimoBalance = null;
+let cultivoEnEdicion = 'maiz';
+
+function balanceInit() {
+  const sel = document.getElementById('balSector');
+  SECTORES_ORIG.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = nombreSector(s);
+    sel.appendChild(o);
+  });
+  // poblar selects de cultivo
+  const selCult = document.getElementById('balCultivo');
+  const selCultEdit = document.getElementById('cultEditSel');
+  Object.keys(cultivos).forEach(k => {
+    selCult.add(new Option(cultivos[k].nombre, k));
+    selCultEdit.add(new Option(cultivos[k].nombre, k));
+  });
+  editarCultivo('maiz');
+}
+
+// Agua útil inicial (mm) desde la muestra más reciente del sector
+function auInicialSector(sid) {
+  if (!muestras[sid] || muestras[sid].length === 0) return null;
+  const m = muestras[sid][muestras[sid].length - 1];
+  const tipo = (typeof sectorSuelo !== 'undefined' && sectorSuelo[sid]) ? sectorSuelo[sid] : 'FL';
+  const P = sueloParams[tipo];
+  let totAuAct = 0;
+  m.horizontes.forEach((h, i) => {
+    const hg = (h.ph - h.ps) / h.ps;
+    const hv = hg * P.da;
+    const lamina = hv * ESPESOR_CM[i] * 10;
+    totAuAct += (lamina - P.pmp[i]);
+  });
+  return { auInicial: totAuAct, auMax: P.auMax, fecha: m.fecha, suelo: P.nombre };
+}
+
+// Kc del día según días desde siembra y duración de etapas
+function kcDelDia(dia, etapas, kc) {
+  const [Li, Ld, Lm, Ll] = etapas;
+  if (dia < 0) return kc[0];
+  if (dia < Li) return kc[0];
+  if (dia < Li + Ld) return kc[0] + (kc[1] - kc[0]) * (dia - Li) / Ld;
+  if (dia < Li + Ld + Lm) return kc[1];
+  if (dia < Li + Ld + Lm + Ll) return kc[1] + (kc[2] - kc[1]) * (dia - Li - Ld - Lm) / Ll;
+  return kc[2];
+}
+function etapaDelDia(dia, etapas) {
+  const [Li, Ld, Lm, Ll] = etapas;
+  if (dia < Li) return 'Inicial';
+  if (dia < Li + Ld) return 'Desarrollo';
+  if (dia < Li + Ld + Lm) return 'Media';
+  if (dia < Li + Ld + Lm + Ll) return 'Final';
+  return 'Post-cosecha';
+}
+
+// Trae ET0 + precipitación de Open-Meteo (archivo + pronóstico, fusionados)
+async function traerClima(lat, lon, fIni, fFin) {
+  const datos = {}; // fecha -> {et0, prec}
+  const hoy = new Date().toISOString().split('T')[0];
+
+  // 1) Histórico (archivo) desde fIni hasta hoy
+  try {
+    const u1 = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
+      `&start_date=${fIni}&end_date=${hoy}&daily=et0_fao_evapotranspiration,precipitation_sum&timezone=auto`;
+    const r1 = await fetch(u1);
+    if (r1.ok) {
+      const j1 = await r1.json();
+      (j1.daily?.time || []).forEach((t, i) => {
+        datos[t] = { et0: j1.daily.et0_fao_evapotranspiration[i], prec: j1.daily.precipitation_sum[i] };
+      });
+    }
+  } catch (e) {}
+
+  // 2) Pronóstico (incluye días recientes que el archivo no tiene aún + futuro)
+  try {
+    const u2 = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&daily=et0_fao_evapotranspiration,precipitation_sum&past_days=10&forecast_days=7&timezone=auto`;
+    const r2 = await fetch(u2);
+    if (r2.ok) {
+      const j2 = await r2.json();
+      (j2.daily?.time || []).forEach((t, i) => {
+        if (t >= fIni && t <= fFin) {
+          datos[t] = { et0: j2.daily.et0_fao_evapotranspiration[i], prec: j2.daily.precipitation_sum[i] };
+        }
+      });
+    }
+  } catch (e) {}
+
+  if (Object.keys(datos).length === 0) throw new Error('No se pudo obtener clima de Open-Meteo');
+  return datos;
+}
+
+async function calcularBalance() {
+  const sid = document.getElementById('balSector').value;
+  const status = document.getElementById('balStatus');
+  const resumen = document.getElementById('balResumen');
+  resumen.innerHTML = '';
+  document.getElementById('balChartCard').style.display = 'none';
+  document.getElementById('balExportBtn').style.display = 'none';
+
+  if (!sid) { status.className = 'ndvit-status error'; status.textContent = '⚠️ Seleccioná un sector'; return; }
+  const cfg = balanceCfg[sid];
+  if (!cfg || !cfg.cultivo || !cfg.siembra) {
+    status.className = 'ndvit-status error';
+    status.textContent = '⚠️ Cargá cultivo y fecha de siembra abajo, y guardá.';
+    return;
+  }
+  const ini = auInicialSector(sid);
+  if (!ini) {
+    status.className = 'ndvit-status error';
+    status.textContent = '⚠️ Este sector no tiene muestras. Cargá los pesos en la solapa Datos.';
+    return;
+  }
+
+  status.className = 'ndvit-status loading';
+  status.textContent = '⏳ Trayendo clima de Open-Meteo...';
+
+  const sector = SECTORES_ORIG.find(s => s.id == sid);
+  const lat = (typeof coordsEditadas !== 'undefined' && coordsEditadas[sid]) ? coordsEditadas[sid].lat : sector.lat;
+  const lon = (typeof coordsEditadas !== 'undefined' && coordsEditadas[sid]) ? coordsEditadas[sid].lon : sector.lon;
+
+  const hoy = new Date();
+  const fFin = new Date(hoy); fFin.setDate(hoy.getDate() + 7);
+  const fFinStr = fFin.toISOString().split('T')[0];
+
+  let clima;
+  try {
+    clima = await traerClima(lat, lon, ini.fecha, fFinStr);
+  } catch (e) {
+    status.className = 'ndvit-status error';
+    status.textContent = '❌ ' + e.message;
+    return;
+  }
+
+  const cult = cultivos[cfg.cultivo];
+  const usaLluviaAuto = lluviaAuto[sid] !== false; // default true
+  const evs = eventos[sid] || [];
+  const umbral = cfg.umbral || 50;
+
+  // Construir serie diaria
+  const fechas = Object.keys(clima).sort();
+  let au = ini.auInicial;
+  const serie = [];
+  const siembra = new Date(cfg.siembra + 'T00:00:00');
+
+  fechas.forEach(f => {
+    if (f < ini.fecha) return;
+    const d = clima[f];
+    const dia = Math.floor((new Date(f + 'T00:00:00') - siembra) / 86400000);
+    const kc = kcDelDia(dia, cult.etapas, cult.kc);
+    const etc = (d.et0 || 0) * kc;
+    let lluvia = lluviaBase(sid, f, d.prec, usaLluviaAuto);
+    let riego = 0;
+    evs.forEach(ev => {
+      if (ev.fecha === f) {
+        if (ev.tipo === 'riego') riego += ev.mm;
+        else if (ev.tipo === 'lluvia' && !usaLluviaAuto) lluvia += ev.mm;
+      }
+    });
+    au = au + lluvia + riego - etc;
+    au = Math.max(0, Math.min(ini.auMax, au));
+    serie.push({ fecha: f, au, pct: au / ini.auMax * 100, etc, kc, lluvia, riego, et0: d.et0 || 0, dia, etapa: etapaDelDia(dia, cult.etapas) });
+  });
+
+  if (serie.length === 0) { status.className = 'ndvit-status error'; status.textContent = '❌ Sin datos en el rango'; return; }
+
+  // Serie comparativa con Kc estimado por NDVI (opcional — no interrumpe el balance principal si falla)
+  let serieNdvi = null, ndviMotivo = null;
+  if (workerUrl) {
+    try {
+      const diasNdvi = Math.min(365, Math.ceil((hoy - new Date(ini.fecha + 'T00:00:00')) / 86400000) + 8);
+      const serieSat = await consultarSerieSector(sid, diasNdvi, 40);
+      if (serieSat.length >= 2) {
+        const techo = Math.max(...cult.kc);
+        const ndviPorDia = interpolarNdviDiario(serieSat, fechas.filter(f => f >= ini.fecha));
+        let auN = ini.auInicial;
+        serieNdvi = [];
+        fechas.forEach(f => {
+          if (f < ini.fecha) return;
+          const d = clima[f];
+          const ndvi = ndviPorDia[f];
+          const kcN = kcNdviEstimado(ndvi, techo);
+          const etcN = (d.et0 || 0) * kcN;
+          let lluvia = lluviaBase(sid, f, d.prec, usaLluviaAuto);
+          let riego = 0;
+          evs.forEach(ev => { if (ev.fecha === f) { if (ev.tipo === 'riego') riego += ev.mm; else if (ev.tipo === 'lluvia' && !usaLluviaAuto) lluvia += ev.mm; } });
+          auN = Math.max(0, Math.min(ini.auMax, auN + lluvia + riego - etcN));
+          serieNdvi.push({ fecha: f, au: auN, pct: auN / ini.auMax * 100, kc: kcN, etc: etcN, ndvi });
+        });
+      } else {
+        ndviMotivo = 'pocas imágenes válidas en el período';
+      }
+    } catch (e) {
+      ndviMotivo = 'no se pudo consultar Sentinel Hub';
+    }
+  } else {
+    ndviMotivo = 'proxy de Sentinel Hub no configurado (pestaña NDVI)';
+  }
+
+  ultimoBalance = { sid, cultivo: cult.nombre, siembra: cfg.siembra, suelo: ini.suelo, auMax: ini.auMax, umbral, serie, serieNdvi, ndviMotivo, auInicial: ini.auInicial, fechaInicial: ini.fecha };
+  status.className = 'ndvit-status';
+  status.textContent = `${cult.nombre} · siembra ${cfg.siembra} · AU inicial ${ini.auInicial.toFixed(0)} mm (${ini.fecha})`;
+
+  renderResumenBalance(ultimoBalance);
+  dibujarGraficoBalance(ultimoBalance);
+  document.getElementById('balExportBtn').style.display = 'block';
+}
+
+function renderResumenBalance(b) {
+  const hoy = new Date().toISOString().split('T')[0];
+  // Estado actual = último día <= hoy
+  let actual = b.serie[b.serie.length - 1];
+  for (let i = b.serie.length - 1; i >= 0; i--) { if (b.serie[i].fecha <= hoy) { actual = b.serie[i]; break; } }
+  const umbralMm = b.auMax * b.umbral / 100;
+  const deficit = Math.max(0, b.auMax - actual.au);
+  const necesitaRiego = actual.au <= umbralMm;
+  const col = actual.pct >= 60 ? 'agua-color-ok' : actual.pct >= b.umbral ? 'agua-color-med' : 'agua-color-bad';
+  const barCol = actual.pct >= 60 ? '#1a9850' : actual.pct >= b.umbral ? '#d46b08' : '#c0392b';
+
+  let comparNdvi = '';
+  if (b.serieNdvi && b.serieNdvi.length) {
+    let actualN = b.serieNdvi[b.serieNdvi.length - 1];
+    for (let i = b.serieNdvi.length - 1; i >= 0; i--) { if (b.serieNdvi[i].fecha <= hoy) { actualN = b.serieNdvi[i]; break; } }
+    const diff = actualN.au - actual.au;
+    const colN = actualN.pct >= 60 ? 'agua-color-ok' : actualN.pct >= b.umbral ? 'agua-color-med' : 'agua-color-bad';
+    comparNdvi = `
+      <div class="agua-card full" style="background:#f5f0fa;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:10px;color:var(--gris);text-transform:uppercase;letter-spacing:.3px;">Con Kc estimado por NDVI</div>
+            <div class="ac-val ${colN}" style="font-size:20px;">${actualN.au.toFixed(0)} mm <span style="font-size:13px;">(${actualN.pct.toFixed(0)}%)</span></div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:var(--gris);">Kc NDVI: ${actualN.kc.toFixed(2)} vs. Kc curva: ${actual.kc.toFixed(2)}</div>
+            <div style="font-size:12px;font-weight:800;color:${Math.abs(diff)>=15?'#c0392b':'#8a8a88'};">${diff>=0?'+':''}${diff.toFixed(0)} mm vs. curva</div>
+          </div>
+        </div>
+      </div>`;
+  } else if (b.ndviMotivo) {
+    comparNdvi = `<div class="agua-card full" style="background:#f7f3ec;"><p style="font-size:11px;color:var(--gris);margin:0;">ℹ️ Sin comparación por NDVI: ${esc(b.ndviMotivo)}.</p></div>`;
+  }
+
+  document.getElementById('balResumen').innerHTML = `
+    <div class="agua-cards">
+      <div class="agua-card">
+        <div class="ac-val ${col}">${actual.au.toFixed(0)}</div>
+        <div class="ac-lbl">Agua útil hoy (mm)</div>
+        <div class="ac-sub">de ${b.auMax} mm · ${actual.etapa}</div>
+      </div>
+      <div class="agua-card">
+        <div class="ac-val ${col}">${actual.pct.toFixed(0)}%</div>
+        <div class="ac-lbl">% Agua útil</div>
+        <div class="ac-sub">Kc actual ${actual.kc.toFixed(2)}</div>
+      </div>
+      <div class="agua-card full" style="background:${necesitaRiego ? '#fdecea' : '#eef7e4'};">
+        <div class="ac-bar-wrap"><div class="ac-bar" style="width:${Math.max(0,Math.min(100,actual.pct))}%;background:${barCol}"></div></div>
+        <div style="font-size:13px;font-weight:800;margin-top:6px;color:${necesitaRiego ? '#c0392b' : '#1a9850'}">
+          ${necesitaRiego ? `⚠️ Regar — déficit ${deficit.toFixed(0)} mm (umbral ${b.umbral}%)` : `✔ Sin necesidad de riego — reserva sobre el umbral ${b.umbral}%`}
+        </div>
+      </div>
+      ${comparNdvi}
+    </div>`;
+}
+
+function dibujarGraficoBalance(b) {
+  document.getElementById('balChartCard').style.display = 'block';
+  document.getElementById('balChartTitle').textContent = `Balance hídrico — Sector ${b.sid} (${b.cultivo})`;
+  const ctx = document.getElementById('balChart');
+  if (balanceChartObj) balanceChartObj.destroy();
+  const hoy = new Date().toISOString().split('T')[0];
+  const umbralMm = b.auMax * b.umbral / 100;
+  const datasets = [
+    { label: 'Agua útil (mm)', data: b.serie.map(p => p.au), borderColor: '#1a6b8a', backgroundColor: 'rgba(26,107,138,0.12)', fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2 },
+    { label: 'AU máxima', data: b.serie.map(() => b.auMax), borderColor: '#1a9850', borderDash: [4,4], pointRadius: 0, borderWidth: 1, fill: false },
+    { label: `Umbral riego (${b.umbral}%)`, data: b.serie.map(() => umbralMm), borderColor: '#c0392b', borderDash: [6,4], pointRadius: 0, borderWidth: 1.5, fill: false }
+  ];
+  if (b.serieNdvi && b.serieNdvi.length) {
+    const mapaN = {}; b.serieNdvi.forEach(p => mapaN[p.fecha] = p.au);
+    datasets.push({ label: 'AU con Kc-NDVI (mm)', data: b.serie.map(p => mapaN[p.fecha] ?? null), borderColor: '#6a3d9a', borderDash: [3,3], pointRadius: 0, borderWidth: 2, fill: false, spanGaps: true });
+  }
+  balanceChartObj = new Chart(ctx, {
+    type: 'line',
+    data: { labels: b.serie.map(p => p.fecha), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { y: { beginAtZero: true, suggestedMax: b.auMax * 1.1, title: { display: true, text: 'Agua útil (mm)' } },
+                x: { ticks: { maxTicksLimit: 8, font: { size: 9 } } } },
+      plugins: { legend: { labels: { font: { size: 10 }, boxWidth: 18 } },
+        tooltip: { callbacks: { afterBody: (items) => {
+          const p = b.serie[items[0].dataIndex];
+          let txt = `Etapa: ${p.etapa} (día ${p.dia})\nKc curva: ${p.kc.toFixed(2)} · ETc: ${p.etc.toFixed(1)} mm\nLluvia: ${p.lluvia.toFixed(1)} · Riego: ${p.riego.toFixed(1)} mm`;
+          if (b.serieNdvi) { const pn = b.serieNdvi.find(x => x.fecha === p.fecha); if (pn) txt += `\nKc NDVI: ${pn.kc.toFixed(2)} (NDVI ${pn.ndvi != null ? pn.ndvi.toFixed(2) : '–'})`; }
+          return txt;
+        } } } }
+    }
+  });
+}
+
+// ── Configuración por sector ──
+function cargarCfgSector() {
+  const sid = document.getElementById('balSector').value;
+  if (!sid) return;
+  const cfg = balanceCfg[sid] || {};
+  document.getElementById('balCultivo').value = cfg.cultivo || 'maiz';
+  document.getElementById('balSiembra').value = cfg.siembra || '';
+  document.getElementById('balUmbral').value = cfg.umbral || 50;
+  document.getElementById('balLluviaAuto').checked = lluviaAuto[sid] !== false;
+  renderEventos();
+}
+function guardarCfgSector() {
+  const sid = document.getElementById('balSector').value;
+  if (!sid) { showToast('⚠️ Seleccioná un sector'); return; }
+  balanceCfg[sid] = {
+    cultivo: document.getElementById('balCultivo').value,
+    siembra: document.getElementById('balSiembra').value,
+    umbral: parseInt(document.getElementById('balUmbral').value) || 50
+  };
+  lluviaAuto[sid] = document.getElementById('balLluviaAuto').checked;
+  localStorage.setItem('balance_cfg_bh', JSON.stringify(balanceCfg));
+  localStorage.setItem('lluvia_auto_bh', JSON.stringify(lluviaAuto));
+  marcarCambio('balanceCfg'); marcarCambio('lluviaAuto');
+  showToast(`✅ Configuración del sector ${sid} guardada`);
+}
+
+// ── Eventos (lluvias / riegos) ──
+function agregarEvento() {
+  const sid = document.getElementById('balSector').value;
+  if (!sid) { showToast('⚠️ Seleccioná un sector'); return; }
+  const fecha = document.getElementById('evFecha').value;
+  const tipo = document.getElementById('evTipo').value;
+  const mm = parseFloat(document.getElementById('evMm').value);
+  if (!fecha || isNaN(mm) || mm <= 0) { showToast('⚠️ Completá fecha y mm'); return; }
+  if (!eventos[sid]) eventos[sid] = [];
+  eventos[sid].push({ fecha, tipo, mm });
+  eventos[sid].sort((a,b) => a.fecha.localeCompare(b.fecha));
+  localStorage.setItem('eventos_bh', JSON.stringify(eventos));
+  marcarCambio('eventos');
+  document.getElementById('evMm').value = '';
+  renderEventos();
+  showToast(`✅ ${tipo === 'riego' ? 'Riego' : 'Lluvia'} ${mm} mm agregado`);
+}
+function borrarEvento(idx) {
+  const sid = document.getElementById('balSector').value;
+  eventos[sid].splice(idx, 1);
+  localStorage.setItem('eventos_bh', JSON.stringify(eventos));
+  marcarCambio('eventos');
+  renderEventos();
+}
+function renderEventos() {
+  const sid = document.getElementById('balSector').value;
+  const cont = document.getElementById('eventosList');
+  const evs = (sid && eventos[sid]) ? eventos[sid] : [];
+  if (!evs.length) { cont.innerHTML = '<p style="font-size:11px;color:var(--gris);text-align:center;padding:6px;">Sin lluvias/riegos cargados</p>'; return; }
+  cont.innerHTML = evs.map((e, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:6px;padding:6px 10px;margin-bottom:5px;font-size:12px;box-shadow:var(--shadow);">
+      <span>${e.tipo === 'riego' ? '🚿' : '🌧️'} <b>${e.fecha}</b> · ${e.mm} mm ${e.tipo === 'riego' ? '(riego)' : '(lluvia)'}</span>
+      <button onclick="borrarEvento(${i})" style="background:none;border:none;color:#c0392b;font-size:14px;cursor:pointer;">✖</button>
+    </div>`).join('');
+}
+
+// ── Editar cultivos (Kc / etapas) ──
+function editarCultivo(k) {
+  cultivoEnEdicion = k;
+  const c = cultivos[k];
+  document.getElementById('cultEditSel').value = k;
+  document.getElementById('cKcIni').value = c.kc[0];
+  document.getElementById('cKcMed').value = c.kc[1];
+  document.getElementById('cKcFin').value = c.kc[2];
+  document.getElementById('cEtIni').value = c.etapas[0];
+  document.getElementById('cEtDes').value = c.etapas[1];
+  document.getElementById('cEtMed').value = c.etapas[2];
+  document.getElementById('cEtFin').value = c.etapas[3];
+}
+function guardarCultivo() {
+  const k = cultivoEnEdicion;
+  const c = cultivos[k];
+  c.kc = [parseFloat(document.getElementById('cKcIni').value)||c.kc[0], parseFloat(document.getElementById('cKcMed').value)||c.kc[1], parseFloat(document.getElementById('cKcFin').value)||c.kc[2]];
+  c.etapas = [parseInt(document.getElementById('cEtIni').value)||c.etapas[0], parseInt(document.getElementById('cEtDes').value)||c.etapas[1], parseInt(document.getElementById('cEtMed').value)||c.etapas[2], parseInt(document.getElementById('cEtFin').value)||c.etapas[3]];
+  localStorage.setItem('cultivos_bh', JSON.stringify(cultivos));
+  marcarCambio('cultivos');
+  showToast(`✅ ${c.nombre} actualizado`);
+}
+function toggleCultParams() {
+  const b = document.getElementById('cultBody');
+  const open = b.style.display === 'none';
+  b.style.display = open ? 'block' : 'none';
+  document.getElementById('cultArrow').textContent = open ? '▲' : '▼';
+}
+
+function exportarBalanceCSV() {
+  if (!ultimoBalance) { showToast('Sin balance'); return; }
+  const b = ultimoBalance;
+  const mapaN = {}; if (b.serieNdvi) b.serieNdvi.forEach(p => mapaN[p.fecha] = p);
+  let rows = [['Sector','Cultivo','Fecha','Dia_desde_siembra','Etapa','Kc','ET0_mm','ETc_mm','Lluvia_mm','Riego_mm','AU_mm','AU_%','NDVI','Kc_NDVI','AU_con_Kc_NDVI_mm']];
+  b.serie.forEach(p => {
+    const n = mapaN[p.fecha];
+    rows.push([b.sid, b.cultivo, p.fecha, p.dia, p.etapa, p.kc.toFixed(3), p.et0.toFixed(2), p.etc.toFixed(2), p.lluvia.toFixed(1), p.riego.toFixed(1), p.au.toFixed(1), p.pct.toFixed(1),
+      n && n.ndvi != null ? n.ndvi.toFixed(3) : '', n ? n.kc.toFixed(3) : '', n ? n.au.toFixed(1) : '']);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `balance_hidrico_sector${b.sid}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); showToast('✅ CSV exportado');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: ESTADO HÍDRICO GLOBAL (mapa + resumen)
+// ══════════════════════════════════════════════════════════
+let estadoHidrico = {};       // { sid: {au, pct, fuente:'medido'|'balance', fecha} }
+let mapaModoHidrico = false;
+let balanceAutoCargado = false;
+
+// Llena estadoHidrico con el agua útil MEDIDA (instantáneo, sin red)
+function refrescarEstadoMedido() {
+  SECTORES_ORIG.forEach(s => {
+    const ini = auInicialSector(s.id);
+    if (ini) {
+      // no pisar si ya hay un balance más actual
+      if (!estadoHidrico[s.id] || estadoHidrico[s.id].fuente !== 'balance') {
+        estadoHidrico[s.id] = { au: ini.auInicial, pct: ini.auInicial / ini.auMax * 100, fuente: 'medido', fecha: ini.fecha };
+      }
+    }
+  });
+}
+
+// Toggle modo hídrico en el mapa
+function toggleMapaHidrico() {
+  mapaModoHidrico = !mapaModoHidrico;
+  document.getElementById('hidricoBtn').classList.toggle('on', mapaModoHidrico);
+  document.getElementById('hidricoLegend').classList.toggle('show', mapaModoHidrico);
+  if (mapaModoHidrico) refrescarEstadoMedido();
+  refreshAllMarkers();
+  showToast(mapaModoHidrico ? '💧 Coloreado por agua útil' : 'Vista normal');
+}
+
+// Cálculo puro del balance de un sector (sin DOM) → estado de hoy
+async function computarBalanceSector(sid) {
+  const cfg = balanceCfg[sid];
+  if (!cfg || !cfg.cultivo || !cfg.siembra) return null;
+  const ini = auInicialSector(sid);
+  if (!ini) return null;
+
+  const sector = SECTORES_ORIG.find(s => s.id == sid);
+  const lat = (coordsEditadas[sid]) ? coordsEditadas[sid].lat : sector.lat;
+  const lon = (coordsEditadas[sid]) ? coordsEditadas[sid].lon : sector.lon;
+  const hoy = new Date();
+  const fFin = new Date(hoy); fFin.setDate(hoy.getDate() + 1);
+  const fFinStr = fFin.toISOString().split('T')[0];
+
+  let clima;
+  try { clima = await traerClima(lat, lon, ini.fecha, fFinStr); }
+  catch (e) { return null; }
+
+  const cult = cultivos[cfg.cultivo];
+  const usaLluviaAuto = lluviaAuto[sid] !== false;
+  const evs = eventos[sid] || [];
+  const siembra = new Date(cfg.siembra + 'T00:00:00');
+  const hoyStr = hoy.toISOString().split('T')[0];
+
+  let au = ini.auInicial;
+  const fechas = Object.keys(clima).sort();
+  fechas.forEach(f => {
+    if (f < ini.fecha || f > hoyStr) return;
+    const d = clima[f];
+    const dia = Math.floor((new Date(f + 'T00:00:00') - siembra) / 86400000);
+    const kc = kcDelDia(dia, cult.etapas, cult.kc);
+    const etc = (d.et0 || 0) * kc;
+    let lluvia = lluviaBase(sid, f, d.prec, usaLluviaAuto);
+    let riego = 0;
+    evs.forEach(ev => {
+      if (ev.fecha === f) {
+        if (ev.tipo === 'riego') riego += ev.mm;
+        else if (ev.tipo === 'lluvia' && !usaLluviaAuto) lluvia += ev.mm;
+      }
+    });
+    au = Math.max(0, Math.min(ini.auMax, au + lluvia + riego - etc));
+  });
+  return { au, pct: au / ini.auMax * 100, auMax: ini.auMax, umbral: cfg.umbral || 50 };
+}
+
+// Corre el balance de todos los sectores configurados
+async function actualizarBalanceTodos() {
+  const status = document.getElementById('estadoHidricoStatus');
+  const statusResumen = document.getElementById('resumenAgrupadoStatus');
+  const sectoresConDatos = SECTORES_ORIG.filter(s => muestras[s.id] && balanceCfg[s.id] && balanceCfg[s.id].siembra);
+  if (sectoresConDatos.length === 0) {
+    status.textContent = 'Ningún sector tiene muestras + cultivo configurados todavía.';
+    if (statusResumen) statusResumen.textContent = '';
+    renderEstadoLista();
+    renderResumenAgrupado();
+    return;
+  }
+  let n = 0;
+  for (const s of sectoresConDatos) {
+    const txt = `⏳ Calculando balance ${++n}/${sectoresConDatos.length} (sector ${s.id})...`;
+    status.textContent = txt;
+    if (statusResumen) statusResumen.textContent = txt;
+    const r = await computarBalanceSector(s.id);
+    if (r) estadoHidrico[s.id] = { au: r.au, pct: r.pct, fuente: 'balance', fecha: new Date().toISOString().split('T')[0], umbral: r.umbral };
+  }
+  const listo = `✔ Balance actualizado al ${new Date().toLocaleDateString('es-AR')}`;
+  status.textContent = listo;
+  if (statusResumen) statusResumen.textContent = listo;
+  renderEstadoLista();
+  renderResumenAgrupado();
+  balanceAutoCargado = true;
+  if (mapaModoHidrico) refreshAllMarkers();
+}
+
+function renderEstadoLista() {
+  refrescarEstadoMedido();
+  const cont = document.getElementById('estadoHidricoLista');
+  const conEstado = SECTORES_ORIG.filter(s => estadoHidrico[s.id]);
+  if (conEstado.length === 0) {
+    cont.innerHTML = '<p style="font-size:12px;color:var(--gris);text-align:center;padding:8px;">Cargá muestras para ver el estado hídrico de cada sector.</p>';
+    return;
+  }
+  // ordenar por % ascendente (los más críticos primero)
+  conEstado.sort((a, b) => estadoHidrico[a.id].pct - estadoHidrico[b.id].pct);
+  cont.innerHTML = conEstado.map(s => {
+    const e = estadoHidrico[s.id];
+    const col = e.pct >= 60 ? '#1a9850' : e.pct >= 35 ? '#d46b08' : '#c0392b';
+    const pct = Math.max(0, Math.min(100, e.pct));
+    return `
+      <div style="margin-bottom:7px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;">
+          <span><b>Sector ${s.id}</b> <span style="color:#999;font-size:10px;">${e.fuente === 'balance' ? 'balance hoy' : 'medido ' + e.fecha}</span></span>
+          <span style="font-weight:800;color:${col};">${e.au.toFixed(0)} mm · ${e.pct.toFixed(0)}%</span>
+        </div>
+        <div style="height:8px;background:var(--arena);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: PRONÓSTICO 14 DÍAS + RECOMENDACIÓN DE RIEGO
+//  Fuente: Open-Meteo (best_match, multimodelo ECMWF/GFS/…)
+// ══════════════════════════════════════════════════════════
+
+// Umbrales DPV (kPa) — indicativos, dependen del cultivo
+const VPD_MEDIO = 1.5;   // demanda atmosférica alta
+const VPD_ALTO  = 2.5;   // estrés probable
+
+function codeInfo(c) {
+  if (c === 0) return { i: '☀️', t: 'Despejado' };
+  if (c <= 2)  return { i: '🌤️', t: 'Parc. nublado' };
+  if (c === 3) return { i: '☁️', t: 'Nublado' };
+  if (c === 45 || c === 48) return { i: '🌫️', t: 'Niebla' };
+  if (c >= 51 && c <= 57) return { i: '🌦️', t: 'Llovizna' };
+  if (c >= 61 && c <= 67) return { i: '🌧️', t: 'Lluvia' };
+  if (c >= 71 && c <= 77) return { i: '❄️', t: 'Nieve' };
+  if (c >= 80 && c <= 82) return { i: '🌧️', t: 'Chaparrones' };
+  if (c === 95) return { i: '⛈️', t: 'Tormenta' };
+  if (c === 96 || c === 99) return { i: '⛈️', t: 'Tormenta c/granizo' };
+  return { i: '🌡️', t: '—' };
+}
+
+function pronosticoInit() {
+  const sel = document.getElementById('pronSector');
+  SECTORES_ORIG.forEach(s => sel.add(new Option(nombreSector(s), s.id)));
+  const selCult = document.getElementById('pronCultivo');
+  Object.keys(cultivos).forEach(k => selCult.add(new Option(cultivos[k].nombre, k)));
+}
+
+function cargarCfgPron() {
+  const sid = document.getElementById('pronSector').value;
+  if (!sid) return;
+  const cfg = balanceCfg[sid] || {};
+  document.getElementById('pronCultivo').value = cfg.cultivo || 'maiz';
+  document.getElementById('pronSiembra').value = cfg.siembra || '';
+  const hint = document.getElementById('pronCultivoHint');
+  hint.textContent = cfg.cultivo && cfg.siembra
+    ? 'Se usa para proyectar el agua útil con el Kc de cada etapa.'
+    : '⚠️ Sin cultivo/siembra guardados — completá y guardá para ver la recomendación de riego.';
+}
+function guardarCfgPron() {
+  const sid = document.getElementById('pronSector').value;
+  if (!sid) { showToast('⚠️ Seleccioná un sector'); return; }
+  const cfg = balanceCfg[sid] || {};
+  cfg.cultivo = document.getElementById('pronCultivo').value;
+  cfg.siembra = document.getElementById('pronSiembra').value;
+  if (!cfg.umbral) cfg.umbral = 50;
+  balanceCfg[sid] = cfg;
+  localStorage.setItem('balance_cfg_bh', JSON.stringify(balanceCfg));
+  marcarCambio('balanceCfg');
+  cargarCfgPron();
+  showToast(`✅ Cultivo del sector ${sid} guardado`);
+}
+
+// Trae pronóstico 14 días de Open-Meteo (best_match)
+async function traerPronostico(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,` +
+    `wind_speed_10m_max,wind_gusts_10m_max,et0_fao_evapotranspiration,weather_code` +
+    `&hourly=vapour_pressure_deficit&forecast_days=14&timezone=auto`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Open-Meteo ' + r.status);
+  const j = await r.json();
+  // DPV máximo diario desde los datos horarios
+  const vpd = {};
+  (j.hourly?.time || []).forEach((t, i) => {
+    const d = t.split('T')[0];
+    const v = j.hourly.vapour_pressure_deficit[i];
+    if (v == null) return;
+    if (vpd[d] == null || v > vpd[d]) vpd[d] = v;
+  });
+  const D = j.daily;
+  return (D.time || []).map((t, i) => ({
+    fecha: t,
+    tmin: D.temperature_2m_min[i],
+    tmax: D.temperature_2m_max[i],
+    precip: D.precipitation_sum[i] || 0,
+    precipProb: D.precipitation_probability_max[i],
+    viento: D.wind_speed_10m_max[i],
+    racha: D.wind_gusts_10m_max[i],
+    et0: D.et0_fao_evapotranspiration[i] || 0,
+    code: D.weather_code[i],
+    vpdMax: vpd[t] != null ? vpd[t] : null
+  }));
+}
+
+async function calcularPronostico() {
+  const sid = document.getElementById('pronSector').value;
+  const status = document.getElementById('pronStatus');
+  const reco = document.getElementById('pronReco');
+  const lista = document.getElementById('pronLista');
+  const resumen = document.getElementById('pronAlertas');
+  reco.innerHTML = ''; lista.innerHTML = ''; resumen.innerHTML = '';
+  if (!sid) { status.className = 'ndvit-status error'; status.textContent = '⚠️ Seleccioná un sector'; return; }
+
+  status.className = 'ndvit-status loading';
+  status.textContent = '⏳ Trayendo pronóstico de Open-Meteo (14 días)...';
+
+  const sector = SECTORES_ORIG.find(s => s.id == sid);
+  const lat = coordsEditadas[sid] ? coordsEditadas[sid].lat : sector.lat;
+  const lon = coordsEditadas[sid] ? coordsEditadas[sid].lon : sector.lon;
+
+  let dias, balHoy = null;
+  try {
+    dias = await traerPronostico(lat, lon);
+    balHoy = await computarBalanceSector(sid); // AU de hoy (si hay datos)
+  } catch (e) {
+    status.className = 'ndvit-status error';
+    status.textContent = '❌ ' + e.message;
+    return;
+  }
+
+  const cfg = balanceCfg[sid];
+  const cult = cfg ? cultivos[cfg.cultivo] : null;
+  const siembra = cfg && cfg.siembra ? new Date(cfg.siembra + 'T00:00:00') : null;
+  const umbral = (cfg && cfg.umbral) ? cfg.umbral : 50;
+  let au = balHoy ? balHoy.au : null;
+  const auMax = balHoy ? balHoy.auMax : null;
+  let diaRiego = null, deficitRiego = 0;
+
+  // Conteo de alertas
+  const conteo = { helada: 0, viento: 0, tormenta: 0, vpd: 0 };
+
+  dias.forEach(d => {
+    // Proyección de agua útil (sin riego, para detectar cuándo hace falta)
+    if (au != null && cult && siembra) {
+      const dd = Math.floor((new Date(d.fecha + 'T00:00:00') - siembra) / 86400000);
+      d.kc = kcDelDia(dd, cult.etapas, cult.kc);
+      d.etc = d.et0 * d.kc;
+      au = Math.max(0, Math.min(auMax, au + d.precip - d.etc));
+      d.auProj = au; d.pctProj = au / auMax * 100;
+      if (diaRiego == null && au <= auMax * umbral / 100) { diaRiego = d.fecha; deficitRiego = (auMax * umbral / 100) - au; }
+    }
+    // Alertas
+    d.alertas = [];
+    if (d.tmin != null && d.tmin <= 0) { d.alertas.push({ k: 'helada', t: 'Helada', i: '🧊' }); conteo.helada++; }
+    else if (d.tmin != null && d.tmin <= 3) { d.alertas.push({ k: 'helada_r', t: 'Riesgo helada', i: '❄️' }); conteo.helada++; }
+    if (d.racha != null && d.racha > 50) { d.alertas.push({ k: 'viento', t: `Viento ${Math.round(d.racha)} km/h`, i: '💨' }); conteo.viento++; }
+    if (d.code >= 95 || d.precip >= 25) { d.alertas.push({ k: 'tormenta', t: 'Tormenta fuerte', i: '⛈️' }); conteo.tormenta++; }
+    if (d.vpdMax != null && d.vpdMax >= VPD_ALTO) { d.alertas.push({ k: 'vpd', t: `DPV ${d.vpdMax.toFixed(1)} (estrés)`, i: '🥵' }); conteo.vpd++; }
+    else if (d.vpdMax != null && d.vpdMax >= VPD_MEDIO) { d.alertas.push({ k: 'vpd_m', t: `DPV ${d.vpdMax.toFixed(1)}`, i: '🌡️' }); }
+  });
+
+  status.className = 'ndvit-status';
+  status.textContent = `Pronóstico 14 días · ${new Date().toLocaleDateString('es-AR')} · fuente Open-Meteo`;
+
+  renderRecoRiego(diaRiego, deficitRiego, balHoy, umbral, cult, dias);
+  renderAlertasResumen(conteo);
+  renderListaPronostico(dias);
+}
+
+function renderRecoRiego(diaRiego, deficit, balHoy, umbral, cult, dias) {
+  const cont = document.getElementById('pronReco');
+  let html, bg, color;
+  if (!balHoy || !cult) {
+    bg = '#eef5f8'; color = '#1a6b8a';
+    html = `<b>ℹ️ Recomendación de riego no disponible</b><br><span style="font-size:12px;">Cargá muestras + cultivo + fecha de siembra del sector (solapas Datos y Balance) para proyectar el agua útil. Los alertas climáticos sí se muestran abajo.</span>`;
+  } else if (diaRiego) {
+    const f = new Date(diaRiego + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    const dd = Math.ceil((new Date(diaRiego + 'T00:00:00') - new Date()) / 86400000);
+    bg = '#fdecea'; color = '#c0392b';
+    html = `<b>⚠️ Riego recomendado ~ ${f}${dd > 0 ? ` (en ${dd} días)` : ' (ya)'}</b><br>
+      <span style="font-size:13px;">El agua útil proyectada cae al umbral del ${umbral}%. Reposición estimada: <b>${deficit.toFixed(0)} mm</b> para llegar al umbral pactado (${umbral}%).</span>`;
+  } else {
+    bg = '#eef7e4'; color = '#1a9850';
+    html = `<b>✔ Sin necesidad de riego en los próximos 14 días</b><br><span style="font-size:12px;">El agua útil proyectada se mantiene por encima del umbral del ${umbral}% con las lluvias pronosticadas.</span>`;
+  }
+  cont.innerHTML = `<div style="background:${bg};border-radius:var(--radius);padding:14px;color:${color};box-shadow:var(--shadow);">${html}</div>`;
+}
+
+function renderAlertasResumen(c) {
+  const cont = document.getElementById('pronAlertas');
+  const items = [
+    { n: c.helada, i: '🧊', t: 'Heladas', col: '#1a6b8a' },
+    { n: c.tormenta, i: '⛈️', t: 'Tormentas', col: '#6a3d9a' },
+    { n: c.viento, i: '💨', t: 'Viento +50', col: '#d46b08' },
+    { n: c.vpd, i: '🥵', t: 'DPV estrés', col: '#c0392b' },
+  ];
+  cont.innerHTML = `<div class="agua-cards" style="grid-template-columns:repeat(4,1fr);">` +
+    items.map(x => `<div class="agua-card" style="padding:10px 4px;">
+      <div style="font-size:20px;">${x.i}</div>
+      <div class="ac-val" style="font-size:20px;color:${x.n > 0 ? x.col : '#bbb'};">${x.n}</div>
+      <div class="ac-lbl">${x.t}</div></div>`).join('') + `</div>`;
+}
+
+function renderListaPronostico(dias) {
+  const cont = document.getElementById('pronLista');
+  cont.innerHTML = dias.map(d => {
+    const ci = codeInfo(d.code);
+    const fecha = new Date(d.fecha + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const badges = d.alertas.map(a => {
+      const colors = { helada: '#1a6b8a', helada_r: '#2590b8', viento: '#d46b08', tormenta: '#6a3d9a', vpd: '#c0392b', vpd_m: '#d46b08' };
+      return `<span style="background:${colors[a.k] || '#999'};color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-right:3px;white-space:nowrap;">${a.i} ${a.t}</span>`;
+    }).join('');
+    const auTxt = (d.pctProj != null)
+      ? `<span style="font-weight:800;color:${d.pctProj >= 60 ? '#1a9850' : d.pctProj >= 35 ? '#d46b08' : '#c0392b'};">${d.pctProj.toFixed(0)}%</span>`
+      : '<span style="color:#bbb;">—</span>';
+    return `
+      <div style="background:#fff;border-radius:8px;padding:9px 11px;margin-bottom:6px;box-shadow:var(--shadow);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:700;text-transform:capitalize;">${ci.i} ${fecha}</span>
+          <span style="font-size:11px;color:var(--gris);">AU proy. ${auTxt}</span>
+        </div>
+        <div style="display:flex;gap:10px;font-size:11px;color:var(--tierra);margin:5px 0;flex-wrap:wrap;">
+          <span>🌡️ ${d.tmin != null ? d.tmin.toFixed(0) : '–'}/${d.tmax != null ? d.tmax.toFixed(0) : '–'}°C</span>
+          <span>🌧️ ${d.precip.toFixed(1)} mm ${d.precipProb != null ? `(${d.precipProb}%)` : ''}</span>
+          <span>💨 ${d.racha != null ? Math.round(d.racha) : '–'} km/h</span>
+          <span>💧 DPV ${d.vpdMax != null ? d.vpdMax.toFixed(1) : '–'}</span>
+        </div>
+        ${badges ? `<div style="margin-top:3px;">${badges}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: AUTENTICACIÓN, CAMPOS AISLADOS Y SINCRONIZACIÓN
+//  Cada usuario pertenece a un "campo"; sus datos (muestras,
+//  sectores, cultivos, etc.) viven separados en la nube y solo
+//  él (y el administrador que lo aprobó) puede escribir ahí.
+// ══════════════════════════════════════════════════════════
+let syncUrl = localStorage.getItem('bh_sync_url') || '';
+let sessionToken = localStorage.getItem('bh_session_token') || '';
+let currentUser = JSON.parse(localStorage.getItem('bh_current_user') || 'null'); // {username, role, campo, nombreCompleto}
+let syncPendCols = new Set(JSON.parse(localStorage.getItem('bh_sync_pend') || '[]'));
+let syncTimer = null;
+
+function setSyncPill(txt, on){ const p=document.getElementById('syncPill'); if(!p) return; p.textContent=txt; p.style.background = on?'rgba(168,224,99,0.35)':'rgba(255,255,255,0.15)'; }
+function setSyncEstado(t){ const e=document.getElementById('syncEstado'); if(e) e.textContent=t; }
+function setAuthFooter(t, err){ const e=document.getElementById('authFooterMsg'); if(e){ e.textContent=t||''; e.style.color = err ? '#c0392b' : 'var(--gris)'; } }
+
+async function api(path, opts={}){
+  const headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
+  if(sessionToken) headers['Authorization'] = 'Bearer ' + sessionToken;
+  const r = await fetch(syncUrl + path, { ...opts, headers });
+  const data = await r.json().catch(() => ({}));
+  if(!r.ok){
+    if(r.status === 401){ cerrarSesion(true); }
+    throw new Error(data.error || ('Error ' + r.status));
+  }
+  return data;
+}
+
+// ──── PASO 0: URL del Worker (una sola vez por dispositivo) ────
+function cambiarUrlWorker(){
+  syncUrl = '';
+  localStorage.removeItem('bh_sync_url');
+  document.getElementById('authUrlInput').value = '';
+  ocultarPasosAuth();
+  document.getElementById('authStepUrl').style.display = 'block';
+}
+function guardarUrlInicial(){
+  const v = document.getElementById('authUrlInput').value.trim().replace(/\/$/,'');
+  if(!v || !/^https:\/\//.test(v)){ showToast('⚠️ URL inválida'); return; }
+  syncUrl = v; localStorage.setItem('bh_sync_url', syncUrl);
+  document.getElementById('authStepUrl').style.display='none';
+  mostrarLogin();
+}
+
+// ──── Navegación entre pasos del gate ────
+function ocultarPasosAuth(){
+  ['authStepUrl','authStepLogin','authStepRegistro','authStepKmz'].forEach(id => document.getElementById(id).style.display='none');
+}
+function mostrarLogin(){ ocultarPasosAuth(); document.getElementById('authStepLogin').style.display='block'; setAuthFooter(''); }
+function mostrarRegistro(){ ocultarPasosAuth(); document.getElementById('authStepRegistro').style.display='block'; setAuthFooter(''); }
+
+function iniciarAuthGate(){
+  if(!syncUrl){ ocultarPasosAuth(); document.getElementById('authStepUrl').style.display='block'; return; }
+  // ¿Ya hay sesión guardada? Intentar restaurarla sin pedir login de nuevo.
+  if(sessionToken){
+    api('/me').then(u => { currentUser = u; localStorage.setItem('bh_current_user', JSON.stringify(u)); entrarConSesion(); })
+      .catch(() => { sessionToken=''; localStorage.removeItem('bh_session_token'); mostrarLogin(); });
+  } else {
+    mostrarLogin();
+  }
+}
+
+async function hacerLogin(){
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError'); err.textContent='';
+  if(!username || !password){ err.textContent='Completá usuario y contraseña'; return; }
+  try{
+    const r = await api('/login', { method:'POST', body: JSON.stringify({ username, password }) });
+    sessionToken = r.token; localStorage.setItem('bh_session_token', sessionToken);
+    currentUser = { username:r.username, role:r.role, campo:r.campo, nombreCompleto:r.nombreCompleto };
+    localStorage.setItem('bh_current_user', JSON.stringify(currentUser));
+    entrarConSesion();
+  }catch(e){ err.textContent = e.message; }
+}
+
+async function hacerRegistro(){
+  const nombreCompleto = document.getElementById('regNombre').value.trim();
+  const campo = document.getElementById('regCampo').value.trim();
+  const username = document.getElementById('regUser').value.trim().toLowerCase();
+  const password = document.getElementById('regPass').value;
+  const err = document.getElementById('regError'); err.textContent='';
+  if(!nombreCompleto || !campo || !username || !password){ err.textContent='Completá todos los campos'; return; }
+  try{
+    await api('/register', { method:'POST', body: JSON.stringify({ nombreCompleto, campo, username, password }) });
+    ocultarPasosAuth();
+    setAuthFooter('✅ Solicitud enviada. Un administrador tiene que autorizarte antes de que puedas ingresar. Probá iniciar sesión más tarde.', false);
+    mostrarLogin();
+    setAuthFooter('✅ Solicitud enviada — esperá la autorización del administrador.', false);
+  }catch(e){ err.textContent = e.message; }
+}
+
+function cerrarSesion(silencioso){
+  if(sessionToken) api('/logout', { method:'POST' }).catch(()=>{});
+  sessionToken=''; currentUser=null;
+  localStorage.removeItem('bh_session_token'); localStorage.removeItem('bh_current_user');
+  document.getElementById('authGate').style.display='flex';
+  mostrarLogin();
+  if(!silencioso) showToast('Sesión cerrada');
+}
+
+// ──── Una vez logueado: cargar sectores del campo y arrancar la app ────
+async function entrarConSesion(){
+  document.getElementById('campoHeaderTxt').textContent = `${currentUser.nombreCompleto} · Campo: ${currentUser.campo}`;
+  document.getElementById('campoActualTxt').textContent = currentUser.campo;
+  document.getElementById('tabUsuarios').style.display = currentUser.role === 'admin' ? '' : 'none';
+  setSyncPill('🔄 Cargando…', false);
+  try{
+    const remoto = await api('/estado');
+    ['muestras','coordsEditadas','completados','sectorSuelo','balanceCfg','eventos','lluviaAuto','cultivos','sueloParams','lluvias'].forEach(col => {
+      if(remoto[col] !== null && remoto[col] !== undefined) aplicarColeccion(col, remoto[col]);
+    });
+    let sectoresRemotos = remoto.sectores, polyRemoto = remoto.sectorPoly;
+
+    if(sectoresRemotos && sectoresRemotos.length){
+      SECTORES_ORIG = sectoresRemotos;
+      SECTOR_POLY = polyRemoto || {};
+      arrancarApp();
+    } else if(!remoto.updatedAt && sabemosQueEsCampoAdmin()){
+      // Primera vez de siempre: sembramos el campo original con los 16 sectores ya conocidos.
+      SECTORES_ORIG = JSON.parse(JSON.stringify(SECTORES_DEFAULT_ADMIN));
+      SECTOR_POLY = JSON.parse(JSON.stringify(SECTOR_POLY_DEFAULT_ADMIN));
+      marcarCambio('sectores'); marcarCambio('sectorPoly');
+      arrancarApp();
+    } else {
+      // Campo nuevo sin sectores todavía: pedir el KMZ.
+      document.getElementById('campoHeaderTxt').textContent = `${currentUser.nombreCompleto} · Campo: ${currentUser.campo} (sin sectores aún)`;
+      ocultarPasosAuth();
+      document.getElementById('authStepKmz').style.display = 'block';
+      setSyncPill('🟡 Falta importar KMZ', false);
+    }
+  }catch(e){
+    setSyncPill('🔴 Error', false);
+    showToast('❌ ' + e.message);
+  }
+}
+function sabemosQueEsCampoAdmin(){ return currentUser.role === 'admin'; }
+
+function arrancarApp(){
+  document.getElementById('authGate').style.display = 'none';
+  setSyncPill('🟢 Sincronizado', true);
+  renderLista();
+  populateRegSelect();
+  ndvitInit();
+  aguaInit();
+  balanceInit();
+  pronosticoInit();
+  if(document.getElementById('panel-resumen').classList.contains('active')){ updateResumen(); renderEstadoLista(); renderResumenAgrupado(); cargarResenaPronostico(); if(!balanceAutoCargado) actualizarBalanceTodos(); }
+}
+
+// ──── Importación de KMZ/KML (client-side) para campos nuevos ────
+async function procesarKmz(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const estado = document.getElementById('kmzEstado');
+  estado.style.color = 'var(--gris)'; estado.textContent = '⏳ Leyendo archivo…';
+  try{
+    let kmlText;
+    if(/\.kmz$/i.test(file.name)){
+      const zip = await JSZip.loadAsync(file);
+      const kmlEntry = Object.values(zip.files).find(f => /\.kml$/i.test(f.name));
+      if(!kmlEntry) throw new Error('El KMZ no contiene un archivo .kml adentro');
+      kmlText = await kmlEntry.async('string');
+    } else {
+      kmlText = await file.text();
+    }
+    const dom = new DOMParser().parseFromString(kmlText, 'text/xml');
+    if(dom.querySelector('parsererror')) throw new Error('El archivo no es un KML/KMZ válido');
+    const placemarks = [...dom.getElementsByTagName('Placemark')].filter(p => p.getElementsByTagName('Polygon').length > 0);
+    if(!placemarks.length) throw new Error('No se encontraron polígonos (Placemarks con Polygon) en el archivo');
+
+    const sectores = [], poly = {};
+    placemarks.forEach((pm, idx) => {
+      const id = idx + 1;
+      const nameEl = pm.getElementsByTagName('name')[0];
+      const nombre = nameEl && nameEl.textContent.trim() ? nameEl.textContent.trim() : ('SECTOR ' + id);
+      const coordsEl = pm.getElementsByTagName('coordinates')[0];
+      const pares = coordsEl.textContent.trim().split(/\s+/).map(c => c.split(',').map(Number));
+      const ring = pares.map(p => [p[0], p[1]]); // [lon, lat]
+      const lat = ring.reduce((a,p) => a+p[1], 0) / ring.length;
+      const lon = ring.reduce((a,p) => a+p[0], 0) / ring.length;
+      sectores.push({ id, lat, lon, nombre });
+      poly[id] = ring;
+    });
+
+    SECTORES_ORIG = sectores; SECTOR_POLY = poly;
+    marcarCambio('sectores'); marcarCambio('sectorPoly');
+    await subirPendientes();
+    estado.style.color = '#1a9850';
+    estado.textContent = `✅ ${sectores.length} sectores cargados y guardados en la nube.`;
+    setTimeout(arrancarApp, 700);
+  }catch(e){
+    estado.style.color = '#c0392b';
+    estado.textContent = '❌ ' + e.message;
+  }
+}
+
+// ──── Colecciones sincronizables ────
+function coleccionActual(nombre){
+  const map = {
+    muestras, coordsEditadas, completados, sectorSuelo,
+    balanceCfg, eventos, lluviaAuto, cultivos, sueloParams, lluvias,
+    sectores: SECTORES_ORIG, sectorPoly: SECTOR_POLY
+  };
+  return map[nombre];
+}
+function aplicarColeccion(nombre, valor){
+  if(valor === null || valor === undefined) return false;
+  const LS_KEYS = {
+    muestras:'muestras_bh', coordsEditadas:'coords_editadas_bh', completados:'completados_bh',
+    sectorSuelo:'sector_suelo_bh', balanceCfg:'balance_cfg_bh', eventos:'eventos_bh',
+    lluviaAuto:'lluvia_auto_bh', cultivos:'cultivos_bh', sueloParams:'suelo_params_bh', lluvias:'lluvias_bh'
+  };
+  switch(nombre){
+    case 'muestras': muestras = valor; break;
+    case 'coordsEditadas': coordsEditadas = valor; break;
+    case 'completados': completados = valor; break;
+    case 'sectorSuelo': sectorSuelo = valor; break;
+    case 'balanceCfg': balanceCfg = valor; break;
+    case 'eventos': eventos = valor; break;
+    case 'lluviaAuto': lluviaAuto = valor; break;
+    case 'cultivos': cultivos = valor; break;
+    case 'sueloParams': sueloParams = valor; break;
+    case 'lluvias': lluvias = valor; balanceAutoCargado = false; break;
+    default: return false;
+  }
+  localStorage.setItem(LS_KEYS[nombre], JSON.stringify(valor));
+  return true;
+}
+
+function marcarCambio(nombre){
+  syncPendCols.add(nombre);
+  localStorage.setItem('bh_sync_pend', JSON.stringify([...syncPendCols]));
+  if(!syncUrl || !sessionToken) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => subirPendientes(), 1200);
+}
+
+async function subirPendientes(){
+  if(!syncUrl || !sessionToken || syncPendCols.size===0) return;
+  const body = {};
+  syncPendCols.forEach(c => body[c] = coleccionActual(c));
+  try{
+    await api('/estado', { method:'POST', body: JSON.stringify(body) });
+    syncPendCols.clear(); localStorage.setItem('bh_sync_pend','[]');
+    setSyncPill('🟢 Sincronizado', true);
+  }catch(e){
+    setSyncPill('🟡 Pendiente de subir', false);
+  }
+}
+
+async function syncAhora(manual){
+  if(!syncUrl || !sessionToken){ if(manual) showToast('⚠️ Iniciá sesión primero'); return; }
+  setSyncEstado('⏳ Sincronizando…'); setSyncPill('🔄 Sincronizando…', false);
+  try{
+    if(syncPendCols.size) await subirPendientes();
+    const remoto = await api('/estado');
+    ['muestras','coordsEditadas','completados','sectorSuelo','balanceCfg','eventos','lluviaAuto','cultivos','sueloParams','lluvias'].forEach(col => {
+      if(remoto[col] !== null && remoto[col] !== undefined) aplicarColeccion(col, remoto[col]);
+    });
+    if(remoto.sectores && remoto.sectores.length){ SECTORES_ORIG = remoto.sectores; SECTOR_POLY = remoto.sectorPoly || {}; }
+    setSyncPill('🟢 Sincronizado', true);
+    setSyncEstado(`✔ Última sync: ${new Date().toLocaleTimeString('es-AR')}`);
+    renderLista();
+    if(map) refreshAllMarkers();
+    if(document.getElementById('panel-resumen').classList.contains('active')){ updateResumen(); renderEstadoLista(); renderResumenAgrupado(); }
+    if(document.getElementById('panel-registro').classList.contains('active')) actualizarSueloDatos();
+  }catch(e){
+    setSyncPill('🔴 Error de sync', false);
+    setSyncEstado('❌ ' + e.message);
+    if(manual) showToast('❌ ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  MÓDULO: ADMINISTRACIÓN DE USUARIOS (solo role === 'admin')
+// ══════════════════════════════════════════════════════════
+async function cargarUsuarios(){
+  const pend = document.getElementById('usuariosPendientes');
+  const act  = document.getElementById('usuariosActivos');
+  pend.innerHTML = '<p style="font-size:12px;color:var(--gris);text-align:center;padding:10px;">⏳ Cargando…</p>';
+  try{
+    const list = await api('/admin/usuarios');
+    const pendientes = list.filter(u => u.status === 'pendiente');
+    const activos = list.filter(u => u.status !== 'pendiente');
+
+    pend.innerHTML = pendientes.length ? pendientes.map(u => `
+      <div class="user-card">
+        <div class="top"><div><div class="nom">${escHtml(u.nombreCompleto)}</div><div class="sub">@${escHtml(u.username)} · Campo: ${escHtml(u.campo)}</div></div></div>
+        <div class="user-actions">
+          <button style="background:#1a9850" onclick="aprobarUsuario('${u.username}')">✔ Autorizar</button>
+          <button style="background:#c0392b" onclick="rechazarUsuario('${u.username}')">✖ Rechazar</button>
+        </div>
+      </div>`).join('') : '<p style="font-size:12px;color:var(--gris);text-align:center;padding:10px;">Sin solicitudes pendientes.</p>';
+
+    act.innerHTML = activos.length ? activos.map(u => `
+      <div class="user-card">
+        <div class="top">
+          <div><div class="nom">${escHtml(u.nombreCompleto)} <span class="role-badge ${u.role}">${u.role}</span></div><div class="sub">@${escHtml(u.username)} · Campo: ${escHtml(u.campo)} · ${u.status === 'rechazado' ? '🚫 rechazado' : '✅ activo'}</div></div>
+        </div>
+        <div class="user-actions">
+          ${u.status === 'rechazado' ? `<button style="background:#1a9850" onclick="aprobarUsuario('${u.username}')">✔ Reactivar</button>` : ''}
+          ${u.role === 'user' ? `<button style="background:#6a3d9a" onclick="cambiarRol('${u.username}','admin')">👑 Hacer admin</button>` : `<button style="background:#8a8a88" onclick="cambiarRol('${u.username}','user')">Quitar admin</button>`}
+          <button style="background:#c0392b" onclick="eliminarUsuario('${u.username}')">🗑️ Eliminar</button>
+        </div>
+      </div>`).join('') : '<p style="font-size:12px;color:var(--gris);text-align:center;padding:10px;">Todavía no hay usuarios activos.</p>';
+  }catch(e){
+    pend.innerHTML = `<p style="font-size:12px;color:#c0392b;text-align:center;padding:10px;">❌ ${escHtml(e.message)}</p>`;
+    act.innerHTML = '';
+  }
+}
+function escHtml(s){ return String(s??'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+async function aprobarUsuario(u){ try{ await api('/admin/aprobar',{method:'POST',body:JSON.stringify({username:u})}); showToast('✅ Usuario autorizado'); cargarUsuarios(); }catch(e){ showToast('❌ '+e.message); } }
+async function rechazarUsuario(u){ if(!confirm('¿Rechazar el acceso de este usuario?')) return; try{ await api('/admin/rechazar',{method:'POST',body:JSON.stringify({username:u})}); showToast('Solicitud rechazada'); cargarUsuarios(); }catch(e){ showToast('❌ '+e.message); } }
+async function cambiarRol(u, rol){ try{ await api('/admin/rol',{method:'POST',body:JSON.stringify({username:u, role:rol})}); showToast('✅ Rol actualizado'); cargarUsuarios(); }catch(e){ showToast('❌ '+e.message); } }
+async function eliminarUsuario(u){ if(!confirm(`¿Eliminar la cuenta de @${u}? Sus datos en la nube NO se borran, solo pierde acceso.`)) return; try{ await api('/admin/eliminar',{method:'POST',body:JSON.stringify({username:u})}); showToast('Usuario eliminado'); cargarUsuarios(); }catch(e){ showToast('❌ '+e.message); } }
+
+// ──── INIT ─────────────────────────────────────────────────
+iniciarAuthGate();
+</script>
+</body>
+</html>
